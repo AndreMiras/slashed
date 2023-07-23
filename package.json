@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node src/indexer.ts",
+    "dev:debug": "node --inspect -r ts-node/register src/indexer.ts",
     "lint:prettier": "prettier --check src *.md",
     "format:prettier": "prettier --write src *.md",
     "lint:eslint": "eslint src",
