@@ -35,15 +35,23 @@ const processBlockResults = (blockResults: BlockResultsResponse) => {
   }
 };
 
-const main = async () => {
-  const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
-  const startHeight = 5148552;
-  const endHeight = startHeight + FETCH_BATCH_SIZE;
+const processBlockRange = async (
+  client: Tendermint34Client,
+  startHeight: number,
+  endHeight: number,
+) => {
   const promises = _.range(startHeight, endHeight + 1).map((height) =>
     client.blockResults(height),
   );
   const blockResultsList = await Promise.all(promises);
   blockResultsList.forEach(processBlockResults);
+};
+
+const main = async () => {
+  const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
+  const startHeight = 5148552;
+  const endHeight = startHeight + FETCH_BATCH_SIZE;
+  processBlockRange(client, startHeight, endHeight);
   client.disconnect();
 };
 
