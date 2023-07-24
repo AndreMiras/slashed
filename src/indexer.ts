@@ -35,16 +35,19 @@ const processBlockResults = (blockResults: BlockResultsResponse) => {
   }
 };
 
+const processBlocks = async (client: Tendermint34Client, heights: number[]) => {
+  const promises = heights.map((height) => client.blockResults(height));
+  const blockResultsList = await Promise.all(promises);
+  blockResultsList.forEach(processBlockResults);
+};
+
 const processBlockRange = async (
   client: Tendermint34Client,
   startHeight: number,
   endHeight: number,
 ) => {
-  const promises = _.range(startHeight, endHeight + 1).map((height) =>
-    client.blockResults(height),
-  );
-  const blockResultsList = await Promise.all(promises);
-  blockResultsList.forEach(processBlockResults);
+  const heights = _.range(startHeight, endHeight + 1);
+  processBlocks(client, heights);
 };
 
 const main = async () => {
