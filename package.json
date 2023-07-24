@@ -19,6 +19,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/lodash": "^4.14.195",
     "@typescript-eslint/eslint-plugin": "^6.1.0",
     "eslint": "^8.45.0",
     "prettier": "^3.0.0",
@@ -27,6 +28,7 @@
   },
   "dependencies": {
     "@cosmjs/tendermint-rpc": "^0.31.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "lodash": "^4.17.21"
   }
 }

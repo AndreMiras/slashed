@@ -1,5 +1,6 @@
 import assert from "assert";
 import * as dotenv from "dotenv";
+import _ from 'lodash';
 import {
   Tendermint34Client,
   Event as BlockEvent,
@@ -26,10 +27,7 @@ const main = async () => {
   const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
   const startHeight = 5148552;
   const endHeight = startHeight + FETCH_BATCH_SIZE;
-  const promises = [];
-  for (let height = startHeight; height <= endHeight; height++) {
-    promises.push(client.blockResults(height));
-  }
+  const promises = _.range(startHeight, endHeight + 1).map(height => client.blockResults(height));
   const blockResultsList = await Promise.all(promises);
   blockResultsList.forEach((blockResults) => {
     const beginBlockEvents = blockResults.beginBlockEvents;
