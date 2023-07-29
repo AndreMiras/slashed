@@ -13,6 +13,7 @@
     "lint": "npm run lint:prettier && npm run lint:eslint",
     "format": "npm run format:prettier && npm run format:eslint",
     "test": "echo \"Error: no test specified\" && exit 1",
+    "supabase": "supabase --workdir src",
     "build": "tsc"
   },
   "keywords": [],
@@ -23,6 +24,7 @@
     "@typescript-eslint/eslint-plugin": "^6.1.0",
     "eslint": "^8.45.0",
     "prettier": "^3.0.0",
+    "sql-formatter": "^12.2.4",
     "supabase": "^1.82.2",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
