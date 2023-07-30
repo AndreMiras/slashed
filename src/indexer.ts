@@ -4,6 +4,7 @@ import _ from "lodash";
 import {
   Tendermint34Client,
   Event as BlockEvent,
+  Attribute as BlockEventAttribute,
   BlockResultsResponse,
 } from "@cosmjs/tendermint-rpc";
 
@@ -14,14 +15,24 @@ assert.ok(TENDERMINT_RPC_URL);
 const FETCH_BATCH_SIZE = Number(process.env.FETCH_BATCH_SIZE ?? 100);
 assert.ok(!isNaN(FETCH_BATCH_SIZE));
 
-const logBlockEvent = (blockEvent: BlockEvent) => {
-  const attributes = blockEvent.attributes;
+const decodeAttribute = (decoder: TextDecoder, attribute: BlockEventAttribute) => {
+  const key = decoder.decode(attribute.key);
+  const value = decoder.decode(attribute.value);
+  return { key, value };
+};
+
+const decodeBlockEvent = (blockEvent: BlockEvent) => {
+  const { attributes } = blockEvent;
   const decoder = new TextDecoder();
-  for (const attribute of attributes) {
-    const key = decoder.decode(attribute.key);
-    const value = decoder.decode(attribute.value);
+  return attributes.map(attribute => decodeAttribute(decoder, attribute));
+};
+
+const logBlockEvent = (blockEvent: BlockEvent) => {
+  const attributes = decodeBlockEvent(blockEvent)
+  attributes.forEach(attribute => {
+    const { key, value } = attribute;
     console.log("Key:", key, "Value:", value);
-  }
+  })
 };
 
 const getSlashEventsForBlockResults = (
