@@ -14,6 +14,7 @@
     "format": "npm run format:prettier && npm run format:eslint",
     "test": "echo \"Error: no test specified\" && exit 1",
     "supabase": "supabase --workdir src",
+    "supabase:gen:types": "supabase --workdir src gen types typescript --local > src/supabase/database.types.ts",
     "build": "tsc"
   },
   "keywords": [],
