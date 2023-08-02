@@ -15,24 +15,44 @@ assert.ok(TENDERMINT_RPC_URL);
 const FETCH_BATCH_SIZE = Number(process.env.FETCH_BATCH_SIZE ?? 100);
 assert.ok(!isNaN(FETCH_BATCH_SIZE));
 
-const decodeAttribute = (decoder: TextDecoder, attribute: BlockEventAttribute) => {
+interface SlashEvent {
+  blockHeight: number;
+  address: string;
+  power: number;
+  reason: string;
+}
+
+const decodeAttribute = (
+  decoder: TextDecoder,
+  attribute: BlockEventAttribute,
+) => {
   const key = decoder.decode(attribute.key);
   const value = decoder.decode(attribute.value);
   return { key, value };
 };
 
-const decodeBlockEvent = (blockEvent: BlockEvent) => {
+const decodeBlockEvent2Array = (
+  blockEvent: BlockEvent,
+): Record<string, string>[] => {
   const { attributes } = blockEvent;
   const decoder = new TextDecoder();
-  return attributes.map(attribute => decodeAttribute(decoder, attribute));
+  return attributes.map((attribute) => decodeAttribute(decoder, attribute));
 };
 
+const decodeBlockEvent2Object = (
+  blockEvent: BlockEvent,
+): Record<string, string> =>
+  _.chain(decodeBlockEvent2Array(blockEvent))
+    .keyBy("key")
+    .mapValues("value")
+    .value();
+
 const logBlockEvent = (blockEvent: BlockEvent) => {
-  const attributes = decodeBlockEvent(blockEvent)
-  attributes.forEach(attribute => {
+  const attributes = decodeBlockEvent2Array(blockEvent);
+  attributes.forEach((attribute) => {
     const { key, value } = attribute;
     console.log("Key:", key, "Value:", value);
-  })
+  });
 };
 
 const getSlashEventsForBlockResults = (
@@ -104,6 +124,32 @@ const logSlashEvents = (slashEvents: Record<number, BlockEvent[]>) => {
   });
 };
 
+const decodeSlashEvent = (
+  slashEvent: BlockEvent,
+  slashHeight: number,
+): SlashEvent => {
+  const decodedSlashEvent = decodeBlockEvent2Object(slashEvent);
+  const { address, power: rawPower, reason } = decodedSlashEvent;
+  assert.ok(address && rawPower && reason);
+  const power = Number(rawPower);
+  return { blockHeight: slashHeight, address, power, reason };
+};
+
+const decodeSlashEvents = (slashEvents: BlockEvent[], slashHeight: number) =>
+  slashEvents.map((slashEvent) => decodeSlashEvent(slashEvent, slashHeight));
+
+const logDecodeSlashEvents = (slashEvents: Record<number, BlockEvent[]>) => {
+  const slashHeights = _.sortBy(Object.keys(slashEvents).map(Number));
+  slashHeights.forEach((slashHeight: number) => {
+    console.log("Slash event(s) at block", slashHeight);
+    const decodedSlashEvents = decodeSlashEvents(
+      slashEvents[slashHeight],
+      slashHeight,
+    );
+    console.log({ decodedSlashEvents });
+  });
+};
+
 const main = async () => {
   const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
   const startHeight = 5148552;
@@ -115,6 +161,7 @@ const main = async () => {
     FETCH_BATCH_SIZE,
   );
   logSlashEvents(slashEvents);
+  logDecodeSlashEvents(slashEvents);
   client.disconnect();
 };
 
