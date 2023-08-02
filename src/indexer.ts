@@ -7,20 +7,17 @@ import {
   Attribute as BlockEventAttribute,
   BlockResultsResponse,
 } from "@cosmjs/tendermint-rpc";
+import { SlashEvent } from "./types";
+import { selectChain, insertSlashEvent } from "./database";
 
 dotenv.config();
 
+const CHAIN_NAME = process.env.CHAIN_NAME;
+assert.ok(CHAIN_NAME);
 const TENDERMINT_RPC_URL = process.env.TENDERMINT_RPC_URL;
 assert.ok(TENDERMINT_RPC_URL);
 const FETCH_BATCH_SIZE = Number(process.env.FETCH_BATCH_SIZE ?? 100);
 assert.ok(!isNaN(FETCH_BATCH_SIZE));
-
-interface SlashEvent {
-  blockHeight: number;
-  address: string;
-  power: number;
-  reason: string;
-}
 
 const decodeAttribute = (
   decoder: TextDecoder,
@@ -135,7 +132,10 @@ const decodeSlashEvent = (
   return { blockHeight: slashHeight, address, power, reason };
 };
 
-const decodeSlashEvents = (slashEvents: BlockEvent[], slashHeight: number) =>
+const decodeSlashEvents = (
+  slashEvents: BlockEvent[],
+  slashHeight: number,
+): SlashEvent[] =>
   slashEvents.map((slashEvent) => decodeSlashEvent(slashEvent, slashHeight));
 
 const logDecodeSlashEvents = (slashEvents: Record<number, BlockEvent[]>) => {
@@ -150,10 +150,30 @@ const logDecodeSlashEvents = (slashEvents: Record<number, BlockEvent[]>) => {
   });
 };
 
+/**
+ * Upserts slash events to the database, ignores duplicates.
+ */
+const insertSlashEvents = (
+  chainId: number,
+  slashEvents: Record<number, BlockEvent[]>,
+) => {
+  const slashHeights = _.sortBy(Object.keys(slashEvents).map(Number));
+  slashHeights.forEach((slashHeight: number) => {
+    const decodedSlashEvents = decodeSlashEvents(
+      slashEvents[slashHeight],
+      slashHeight,
+    );
+    decodedSlashEvents.forEach((slashEvent) => {
+      insertSlashEvent(chainId, slashEvent);
+    });
+  });
+};
+
 const main = async () => {
   const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
   const startHeight = 5148552;
   const endHeight = startHeight + 100;
+  const chainName = CHAIN_NAME;
   const slashEvents = await processBlockRangeChunks(
     client,
     startHeight,
@@ -162,6 +182,8 @@ const main = async () => {
   );
   logSlashEvents(slashEvents);
   logDecodeSlashEvents(slashEvents);
+  const { id: chainId } = await selectChain(chainName);
+  insertSlashEvents(chainId, slashEvents);
   client.disconnect();
 };
 
