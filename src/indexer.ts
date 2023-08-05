@@ -22,6 +22,10 @@ const TENDERMINT_RPC_URL = process.env.TENDERMINT_RPC_URL;
 assert.ok(TENDERMINT_RPC_URL);
 const FETCH_BATCH_SIZE = Number(process.env.FETCH_BATCH_SIZE ?? 100);
 assert.ok(!isNaN(FETCH_BATCH_SIZE));
+const PROCESS_CHAIN_BATCH_SIZE = Number(
+  process.env.PROCESS_CHAIN_BATCH_SIZE ?? 100,
+);
+assert.ok(!isNaN(PROCESS_CHAIN_BATCH_SIZE));
 
 const decodeAttribute = (
   decoder: TextDecoder,
@@ -180,11 +184,13 @@ const insertSlashEvents = (
   });
 };
 
-const processChain = async (
+const processChainChunk = async (
   chainName: string,
   startHeight: number,
   endHeight: number,
 ) => {
+  console.log("processChainChunk()");
+  console.log({ startHeight, endHeight });
   const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
   const slashEvents = await processBlockRangeChunks(
     client,
@@ -199,10 +205,31 @@ const processChain = async (
   client.disconnect();
 };
 
+/**
+ * Process chain blocks from startHeight to endHeight making sure we don't handle more than
+ * PROCESS_CHAIN_BATCH_SIZE blocks at a time.
+ * This way we know we came full circle from downloading blocks, filtering and saving to DB
+ * every PROCESS_CHAIN_BATCH_SIZE blocks at most.
+ */
+const processChain = async (
+  chainName: string,
+  startHeight: number,
+  endHeight: number,
+) => {
+  let currentStart = startHeight;
+  let currentEnd = Math.min(startHeight + PROCESS_CHAIN_BATCH_SIZE, endHeight);
+  while (currentStart <= endHeight) {
+    await processChainChunk(chainName, currentStart, currentEnd);
+    currentStart = currentEnd + 1;
+    currentEnd = Math.min(currentStart + PROCESS_CHAIN_BATCH_SIZE, endHeight);
+  }
+};
+
 const main = async () => {
   const chainName = CHAIN_NAME;
   const startHeight = START_HEIGHT;
   const endHeight = END_HEIGHT;
+  console.log("main()");
   console.log({ chainName, startHeight, endHeight });
   processChain(chainName, startHeight, endHeight);
 };
