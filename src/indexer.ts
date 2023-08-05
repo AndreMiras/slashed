@@ -176,11 +176,12 @@ const insertSlashEvents = (
   });
 };
 
-const main = async () => {
+const processChain = async (
+  chainName: string,
+  startHeight: number,
+  endHeight: number,
+) => {
   const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
-  const startHeight = 5148552;
-  const endHeight = startHeight + 100;
-  const chainName = CHAIN_NAME;
   const slashEvents = await processBlockRangeChunks(
     client,
     startHeight,
@@ -192,6 +193,13 @@ const main = async () => {
   const { id: chainId } = await selectChain(chainName);
   insertSlashEvents(chainId, slashEvents);
   client.disconnect();
+};
+
+const main = async () => {
+  const startHeight = 5148552;
+  const endHeight = startHeight + 100;
+  const chainName = CHAIN_NAME;
+  processChain(chainName, startHeight, endHeight);
 };
 
 main().catch(console.error);
