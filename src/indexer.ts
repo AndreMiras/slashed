@@ -14,6 +14,10 @@ dotenv.config();
 
 const CHAIN_NAME = process.env.CHAIN_NAME;
 assert.ok(CHAIN_NAME);
+const START_HEIGHT = Number(process.env.START_HEIGHT);
+assert.ok(!isNaN(START_HEIGHT));
+const END_HEIGHT = Number(process.env.END_HEIGHT);
+assert.ok(!isNaN(END_HEIGHT));
 const TENDERMINT_RPC_URL = process.env.TENDERMINT_RPC_URL;
 assert.ok(TENDERMINT_RPC_URL);
 const FETCH_BATCH_SIZE = Number(process.env.FETCH_BATCH_SIZE ?? 100);
@@ -196,9 +200,10 @@ const processChain = async (
 };
 
 const main = async () => {
-  const startHeight = 5148552;
-  const endHeight = startHeight + 100;
   const chainName = CHAIN_NAME;
+  const startHeight = START_HEIGHT;
+  const endHeight = END_HEIGHT;
+  console.log({ chainName, startHeight, endHeight });
   processChain(chainName, startHeight, endHeight);
 };
 
