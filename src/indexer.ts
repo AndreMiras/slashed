@@ -103,9 +103,16 @@ const processBlockRangeChunks = async (
 ): Promise<Record<number, BlockEvent[]>> => {
   const allHeights = _.range(startHeight, endHeight + 1);
   const heightsChunks = _.chunk(allHeights, batchSize);
-  const slashEventsWithEmpty = await Promise.all(
-    heightsChunks.map((heights) => processBlocks(client, heights)),
-  );
+
+  const slashEventsWithEmpty = [];
+  for (let i = 0; i < heightsChunks.length; i++) {
+    const heights = heightsChunks[i];
+    const progress = Math.round((100 * (i + 1)) / heightsChunks.length);
+    console.log(
+      `Processing block chunk ${i + 1}/${heightsChunks.length} (${progress}%)`,
+    );
+    slashEventsWithEmpty.push(await processBlocks(client, heights));
+  }
   const slashEvents = slashEventsWithEmpty.reduce(
     (acc, curr) => ({ ...acc, ...curr }),
     {},
