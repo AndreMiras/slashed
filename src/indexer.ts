@@ -8,16 +8,17 @@ import {
   BlockResultsResponse,
 } from "@cosmjs/tendermint-rpc";
 import { SlashEvent } from "./types";
-import { selectChain, insertSlashEvent } from "./database";
+import {
+  selectChain,
+  getLatestSynchronizedBlock,
+  updateLatestSynchronizedBlock,
+  insertSlashEvent,
+} from "./database";
 
 dotenv.config();
 
 const CHAIN_NAME = process.env.CHAIN_NAME;
 assert.ok(CHAIN_NAME);
-const START_HEIGHT = Number(process.env.START_HEIGHT);
-assert.ok(!isNaN(START_HEIGHT));
-const END_HEIGHT = Number(process.env.END_HEIGHT);
-assert.ok(!isNaN(END_HEIGHT));
 const TENDERMINT_RPC_URL = process.env.TENDERMINT_RPC_URL;
 assert.ok(TENDERMINT_RPC_URL);
 const FETCH_BATCH_SIZE = Number(process.env.FETCH_BATCH_SIZE ?? 100);
@@ -185,13 +186,13 @@ const insertSlashEvents = (
 };
 
 const processChainChunk = async (
-  chainName: string,
+  client: Tendermint34Client,
+  chainId: number,
   startHeight: number,
   endHeight: number,
 ) => {
   console.log("processChainChunk()");
   console.log({ startHeight, endHeight });
-  const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
   const slashEvents = await processBlockRangeChunks(
     client,
     startHeight,
@@ -200,9 +201,8 @@ const processChainChunk = async (
   );
   logSlashEvents(slashEvents);
   logDecodeSlashEvents(slashEvents);
-  const { id: chainId } = await selectChain(chainName);
-  insertSlashEvents(chainId, slashEvents);
-  client.disconnect();
+  await insertSlashEvents(chainId, slashEvents);
+  await updateLatestSynchronizedBlock(chainId, endHeight);
 };
 
 /**
@@ -212,26 +212,51 @@ const processChainChunk = async (
  * every PROCESS_CHAIN_BATCH_SIZE blocks at most.
  */
 const processChain = async (
-  chainName: string,
+  client: Tendermint34Client,
+  chainId: number,
   startHeight: number,
   endHeight: number,
 ) => {
   let currentStart = startHeight;
   let currentEnd = Math.min(startHeight + PROCESS_CHAIN_BATCH_SIZE, endHeight);
   while (currentStart <= endHeight) {
-    await processChainChunk(chainName, currentStart, currentEnd);
+    await processChainChunk(client, chainId, currentStart, currentEnd);
     currentStart = currentEnd + 1;
     currentEnd = Math.min(currentStart + PROCESS_CHAIN_BATCH_SIZE, endHeight);
   }
 };
 
+/**
+ * Returns START_HEIGHT environment variable or defaults to DB latest synchronized block.
+ */
+const getStartHeight = async (chainId: number): Promise<number> => {
+  const startHeight = Number(process.env.START_HEIGHT);
+  if (!isNaN(startHeight)) return startHeight;
+  console.log("No valid START_HEIGHT, using DB latest synchronized");
+  return getLatestSynchronizedBlock(chainId);
+};
+
+/**
+ * Returns END_HEIGHT environment variable or defaults to latest mined block.
+ */
+const getEndHeight = async (client: Tendermint34Client) => {
+  const endHeight = Number(process.env.END_HEIGHT);
+  if (!isNaN(endHeight)) return endHeight;
+  console.log("No valid END_HEIGHT, using latest mined");
+  const status = await client.status();
+  return status.syncInfo.latestBlockHeight;
+};
+
 const main = async () => {
   const chainName = CHAIN_NAME;
-  const startHeight = START_HEIGHT;
-  const endHeight = END_HEIGHT;
+  const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
+  const { id: chainId } = await selectChain(chainName);
+  const startHeight = await getStartHeight(chainId);
+  const endHeight = await getEndHeight(client);
   console.log("main()");
   console.log({ chainName, startHeight, endHeight });
-  processChain(chainName, startHeight, endHeight);
+  processChain(client, chainId, startHeight, endHeight);
+  client.disconnect();
 };
 
 main().catch(console.error);

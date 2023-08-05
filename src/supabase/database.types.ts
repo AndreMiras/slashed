@@ -83,6 +83,31 @@ export interface Database {
           },
         ];
       };
+      sync_statuses: {
+        Row: {
+          block_height: number;
+          chain_id: number;
+          id: number;
+        };
+        Insert: {
+          block_height: number;
+          chain_id: number;
+          id?: never;
+        };
+        Update: {
+          block_height?: number;
+          chain_id?: number;
+          id?: never;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sync_statuses_chain_id_fkey";
+            columns: ["chain_id"];
+            referencedRelation: "chains";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
