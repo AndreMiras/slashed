@@ -7,9 +7,11 @@ import {
   Attribute as BlockEventAttribute,
   BlockResultsResponse,
 } from "@cosmjs/tendermint-rpc";
+import chains from "./chains";
 import { SlashEvent } from "./types";
 import {
   selectChain,
+  upsertChains,
   getLatestSynchronizedBlock,
   updateLatestSynchronizedBlock,
   insertSlashEvent,
@@ -249,6 +251,7 @@ const getEndHeight = async (client: Tendermint34Client) => {
 
 const main = async () => {
   const chainName = CHAIN_NAME;
+  await upsertChains(chains);
   const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
   const { id: chainId } = await selectChain(chainName);
   const startHeight = await getStartHeight(chainId);

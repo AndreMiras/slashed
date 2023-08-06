@@ -37,6 +37,26 @@ const selectChain = async (name: string) => {
 };
 
 /**
+ * Upserts chains, ignores duplicates.
+ */
+const upsertChains = async (chainNames: string[]) => {
+  const supabase = getSupabaseClient();
+  const rows = chainNames.map((chainName) => ({
+    name: chainName,
+  }));
+  const { error } = await supabase.from("chains").upsert(rows, {
+    onConflict: "name",
+    ignoreDuplicates: true,
+  });
+  handlePostgrestError(error);
+};
+
+/**
+ * Upserts chain, ignores duplicates.
+ */
+const upsertChain = async (chainName: string) => upsertChains([chainName]);
+
+/**
  * Returns the latest known synchronized block or 1 if none.
  */
 const getLatestSynchronizedBlock = async (chainId: number): Promise<number> => {
@@ -96,6 +116,8 @@ const insertSlashEvent = async (chainId: number, slashEvent: SlashEvent) => {
 
 export {
   selectChain,
+  upsertChain,
+  upsertChains,
   getLatestSynchronizedBlock,
   updateLatestSynchronizedBlock,
   insertSlashEvent,
