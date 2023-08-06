@@ -63,10 +63,20 @@ const logBlockEvent = (blockEvent: BlockEvent) => {
   });
 };
 
+/**
+ * Filter for slashing events only.
+ * Note that Kujira has a bug where the slashing event is split in 2.
+ * One of the 2 events contains 3 attributes: "address", "power" and "reason",
+ * but not the "jailed" address.
+ * The other one contains only 1 attribute: the "jailed" address.
+ * Here we are filtering to keep only the former one that contains more info.
+ */
 const getSlashEventsForBlockResults = (
   blockResults: BlockResultsResponse,
 ): BlockEvent[] =>
-  blockResults.beginBlockEvents.filter((event) => event.type === "slash");
+  blockResults.beginBlockEvents.filter(
+    (event) => event.type === "slash" && event.attributes.length >= 3,
+  );
 
 const getSlashEvents = async (
   client: Tendermint34Client,
