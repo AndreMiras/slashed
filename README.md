@@ -3,6 +3,14 @@
 The indexer for Slashed.
 Looks for slashing events using an archive node RPC, stores the events in database.
 
+## Usage
+
+```sh
+CHAIN_NAME=kujira \
+TENDERMINT_RPC_URL=https://archive.kujira.network \
+npm run dev
+```
+
 ## DB backup & restore
 
 Backup everything:
