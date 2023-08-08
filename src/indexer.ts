@@ -2,11 +2,18 @@ import assert from "assert";
 import * as dotenv from "dotenv";
 import _ from "lodash";
 import {
+  TendermintClient,
   Tendermint34Client,
-  Event as BlockEvent,
-  Attribute as BlockEventAttribute,
-  BlockResultsResponse,
+  Tendermint37Client,
+  Attribute as BlockEventAttribute34,
+  BlockResultsResponse as BlockResultsResponse34,
+  Event as BlockEvent34,
 } from "@cosmjs/tendermint-rpc";
+import {
+  EventAttribute as BlockEventAttribute37,
+  BlockResultsResponse as BlockResultsResponse37,
+  Event as BlockEvent37,
+} from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
 import chains from "./chains";
 import { SlashEvent } from "./types";
 import {
@@ -30,12 +37,22 @@ const PROCESS_CHAIN_BATCH_SIZE = Number(
 );
 assert.ok(!isNaN(PROCESS_CHAIN_BATCH_SIZE));
 
+type BlockEvent = BlockEvent34 | BlockEvent37;
+type BlockEventAttribute = BlockEventAttribute34 | BlockEventAttribute37;
+type BlockResultsResponse = BlockResultsResponse34 | BlockResultsResponse37;
+
 const decodeAttribute = (
   decoder: TextDecoder,
   attribute: BlockEventAttribute,
 ) => {
-  const key = decoder.decode(attribute.key);
-  const value = decoder.decode(attribute.value);
+  const key =
+    attribute.key instanceof Uint8Array
+      ? decoder.decode(attribute.key)
+      : attribute.key;
+  const value =
+    attribute.value instanceof Uint8Array
+      ? decoder.decode(attribute.value)
+      : attribute.value;
   return { key, value };
 };
 
@@ -63,6 +80,21 @@ const logBlockEvent = (blockEvent: BlockEvent) => {
   });
 };
 
+const beginBlockEventsFilter = (event: BlockEvent) =>
+  event.type === "slash" && event.attributes.length >= 3;
+
+const isBlockResultsResponse34 = (
+  obj: BlockResultsResponse,
+): obj is BlockResultsResponse34 => {
+  const attributeKey = obj.beginBlockEvents[0].attributes[0].key;
+  // if obj.beginBlockEvents has no events then we are OK with it being any type since we can't
+  // go through it anyway
+  return (
+    obj?.beginBlockEvents !== undefined &&
+    (attributeKey === undefined || attributeKey instanceof Uint8Array)
+  );
+};
+
 /**
  * Filter for slashing events only.
  * Note that Kujira has a bug where the slashing event is split in 2.
@@ -73,13 +105,19 @@ const logBlockEvent = (blockEvent: BlockEvent) => {
  */
 const getSlashEventsForBlockResults = (
   blockResults: BlockResultsResponse,
-): BlockEvent[] =>
-  blockResults.beginBlockEvents.filter(
-    (event) => event.type === "slash" && event.attributes.length >= 3,
+): BlockEvent[] => {
+  if (isBlockResultsResponse34(blockResults)) {
+    return (blockResults.beginBlockEvents as BlockEvent34[]).filter(
+      beginBlockEventsFilter,
+    );
+  }
+  return (blockResults.beginBlockEvents as BlockEvent37[]).filter(
+    beginBlockEventsFilter,
   );
+};
 
 const getSlashEvents = async (
-  client: Tendermint34Client,
+  client: TendermintClient,
   heights: number[],
 ): Promise<Record<number, BlockEvent[]>> => {
   const promises = heights.map((height) => client.blockResults(height));
@@ -97,7 +135,7 @@ const getSlashEvents = async (
 };
 
 const processBlocks = (
-  client: Tendermint34Client,
+  client: TendermintClient,
   heights: number[],
 ): Promise<Record<number, BlockEvent[]>> => getSlashEvents(client, heights);
 
@@ -105,7 +143,7 @@ const processBlocks = (
  * Processes blocks from startHeight to endHeight (inclusive).
  */
 export const processBlockRange = async (
-  client: Tendermint34Client,
+  client: TendermintClient,
   startHeight: number,
   endHeight: number,
 ): Promise<Record<number, BlockEvent[]>> => {
@@ -117,7 +155,7 @@ export const processBlockRange = async (
  * Processes blocks from startHeight to endHeight (inclusive) by batchSize chunks.
  */
 const processBlockRangeChunks = async (
-  client: Tendermint34Client,
+  client: TendermintClient,
   startHeight: number,
   endHeight: number,
   batchSize: number,
@@ -198,7 +236,7 @@ const insertSlashEvents = (
 };
 
 const processChainChunk = async (
-  client: Tendermint34Client,
+  client: TendermintClient,
   chainId: number,
   startHeight: number,
   endHeight: number,
@@ -224,7 +262,7 @@ const processChainChunk = async (
  * every PROCESS_CHAIN_BATCH_SIZE blocks at most.
  */
 const processChain = async (
-  client: Tendermint34Client,
+  client: TendermintClient,
   chainId: number,
   startHeight: number,
   endHeight: number,
@@ -251,7 +289,7 @@ const getStartHeight = async (chainId: number): Promise<number> => {
 /**
  * Returns END_HEIGHT environment variable or defaults to latest mined block.
  */
-const getEndHeight = async (client: Tendermint34Client) => {
+const getEndHeight = async (client: TendermintClient) => {
   const endHeight = Number(process.env.END_HEIGHT);
   if (!isNaN(endHeight)) return endHeight;
   console.log("No valid END_HEIGHT, using latest mined");
@@ -259,10 +297,49 @@ const getEndHeight = async (client: Tendermint34Client) => {
   return status.syncInfo.latestBlockHeight;
 };
 
+/**
+ * The version of the status endpoint can be inconsistent from one client to another.
+ * e.g. "v0.34.24", "0.34.28" or "0.37.1"
+ */
+const cleanVersion = (version: string) => version.replace(/^v/, "");
+
+const getRpcNodeVersion = async (rpcUrl: string): Promise<string> => {
+  const url = `${rpcUrl}/status`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(
+      `Error fetching RPC node version, status: ${response.status}`,
+    );
+  }
+  const data = await response.json();
+  return data.result.node_info.version;
+};
+
+/**
+ * Connects the right Tendermint client version based on the RPC status endpoint
+ * And returns the connection object.
+ */
+const getTendermintClient = async (
+  rpcUrl: string,
+): Promise<TendermintClient> => {
+  const version = cleanVersion(await getRpcNodeVersion(rpcUrl));
+  const [major, minor] = version.split(".");
+  const majorMinor = `${major}.${minor}`;
+  const clients: Record<
+    string,
+    typeof Tendermint34Client | typeof Tendermint37Client
+  > = {
+    "0.34": Tendermint34Client,
+    "0.37": Tendermint37Client,
+  };
+  assert.ok(majorMinor in clients);
+  return clients[majorMinor].connect(rpcUrl);
+};
+
 const main = async () => {
   const chainName = CHAIN_NAME;
   await upsertChains(chains);
-  const client = await Tendermint34Client.connect(TENDERMINT_RPC_URL);
+  const client = await getTendermintClient(TENDERMINT_RPC_URL);
   const { id: chainId } = await selectChain(chainName);
   const startHeight = await getStartHeight(chainId);
   const endHeight = await getEndHeight(client);
