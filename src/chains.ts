@@ -1,3 +1,3 @@
-const CHAINS = ["canto", "kujira"];
+const CHAINS = ["canto", "chihuahua", "kujira"];
 
 export default CHAINS;
