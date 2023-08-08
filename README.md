@@ -11,6 +11,10 @@ TENDERMINT_RPC_URL=https://archive.kujira.network \
 npm run dev
 ```
 
+## Add new chain
+
+Add the new `chain_name` to `src/chains.ts` and start the indexer with `CHAIN_NAME` and `TENDERMINT_RPC_URL`.
+
 ## DB backup & restore
 
 Backup everything:
