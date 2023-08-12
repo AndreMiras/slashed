@@ -21,7 +21,10 @@ import {
   upsertChains,
   getLatestSynchronizedBlock,
   updateLatestSynchronizedBlock,
+  upsertBlocks,
+  upsertBlock,
   insertSlashEvent,
+  selectNullTimestamps,
 } from "./database";
 
 dotenv.config();
@@ -229,10 +232,36 @@ const insertSlashEvents = (
       slashEvents[slashHeight],
       slashHeight,
     );
-    decodedSlashEvents.forEach((slashEvent) => {
-      insertSlashEvent(chainId, slashEvent);
+    decodedSlashEvents.forEach(async (slashEvent) => {
+      await upsertBlock(chainId, slashEvent.blockHeight);
+      await insertSlashEvent(chainId, slashEvent);
     });
   });
+};
+
+const getBlockTimestamp = async (
+  client: TendermintClient,
+  height: number,
+): Promise<Date> => {
+  const blockResponse = await client.block(height);
+  return new Date(blockResponse.block.header.time.getTime());
+};
+
+/**
+ * Add missing timestamps by fetching them using the RPC "block" call.
+ */
+const processMissingTimestamps = async (
+  client: TendermintClient,
+  chainId: number,
+) => {
+  const nullTimestampsRows = await selectNullTimestamps(chainId);
+  const promises = nullTimestampsRows.map(async ({ height }) => ({
+    chainId,
+    time: await getBlockTimestamp(client, height),
+    height,
+  }));
+  const upsertRows = await Promise.all(promises);
+  await upsertBlocks(upsertRows);
 };
 
 const processChainChunk = async (
@@ -252,6 +281,7 @@ const processChainChunk = async (
   logSlashEvents(slashEvents);
   logDecodeSlashEvents(slashEvents);
   await insertSlashEvents(chainId, slashEvents);
+  await processMissingTimestamps(client, chainId);
   await updateLatestSynchronizedBlock(chainId, endHeight);
 };
 

@@ -34,17 +34,45 @@ export interface Database {
   };
   public: {
     Tables: {
+      blocks: {
+        Row: {
+          chain_id: number;
+          height: number;
+          id: number;
+          time: string | null;
+        };
+        Insert: {
+          chain_id: number;
+          height: number;
+          id?: never;
+          time?: string | null;
+        };
+        Update: {
+          chain_id?: number;
+          height?: number;
+          id?: never;
+          time?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "blocks_chain_id_fkey";
+            columns: ["chain_id"];
+            referencedRelation: "chains";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       chains: {
         Row: {
           id: number;
           name: string;
         };
         Insert: {
-          id?: never;
+          id?: number;
           name: string;
         };
         Update: {
-          id?: never;
+          id?: number;
           name?: string;
         };
         Relationships: [];
@@ -62,7 +90,7 @@ export interface Database {
           address: string;
           block_height: number;
           chain_id: number;
-          id?: never;
+          id?: number;
           power: number;
           reason: string;
         };
@@ -70,11 +98,17 @@ export interface Database {
           address?: string;
           block_height?: number;
           chain_id?: number;
-          id?: never;
+          id?: number;
           power?: number;
           reason?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "slashing_events_chain_id_block_height_fkey";
+            columns: ["chain_id", "block_height"];
+            referencedRelation: "blocks";
+            referencedColumns: ["chain_id", "height"];
+          },
           {
             foreignKeyName: "slashing_events_chain_id_fkey";
             columns: ["chain_id"];
@@ -92,12 +126,12 @@ export interface Database {
         Insert: {
           block_height: number;
           chain_id: number;
-          id?: never;
+          id?: number;
         };
         Update: {
           block_height?: number;
           chain_id?: number;
-          id?: never;
+          id?: number;
         };
         Relationships: [
           {

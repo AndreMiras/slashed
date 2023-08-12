@@ -96,6 +96,28 @@ const updateLatestSynchronizedBlock = async (
 };
 
 /**
+ * Upserts block to the database, ignores duplicates.
+ */
+const upsertBlocks = async (
+  rows: { chainId: number; height: number; time?: Date }[],
+) => {
+  const supabase = getSupabaseClient();
+  const upsertRows = rows.map(({ chainId: chain_id, height, time }) => ({
+    chain_id,
+    height,
+    ...(time ? { time: time.toISOString() } : {}),
+  }));
+  const { error } = await supabase.from("blocks").upsert(upsertRows, {
+    onConflict: "chain_id,height",
+    ignoreDuplicates: false,
+  });
+  handlePostgrestError(error);
+};
+
+const upsertBlock = async (chainId: number, height: number, time?: Date) =>
+  upsertBlocks([{ chainId, height, time }]);
+
+/**
  * Upserts slash event to the database, ignores duplicates.
  */
 const insertSlashEvent = async (chainId: number, slashEvent: SlashEvent) => {
@@ -114,11 +136,28 @@ const insertSlashEvent = async (chainId: number, slashEvent: SlashEvent) => {
   handlePostgrestError(error);
 };
 
+/**
+ * Returns rows with null timestamps.
+ */
+const selectNullTimestamps = async (chainId: number) => {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("blocks")
+    .select("*")
+    .eq("chain_id", chainId)
+    .is("time", null);
+  handlePostgrestError(error);
+  return data!;
+};
+
 export {
   selectChain,
   upsertChain,
   upsertChains,
   getLatestSynchronizedBlock,
   updateLatestSynchronizedBlock,
+  upsertBlocks,
+  upsertBlock,
   insertSlashEvent,
+  selectNullTimestamps,
 };
