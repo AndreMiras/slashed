@@ -48,7 +48,15 @@ variable "indexer_image" {
 variable "chains" {
   type        = list(string)
   description = "List of supported chains."
-  default     = ["composable"]
+  default = [
+    "canto",
+    "chihuahua",
+    "composable",
+    "evmos",
+    "kujira",
+    "meme",
+    "nois",
+  ]
 }
 
 variable "run_job_timeout" {
