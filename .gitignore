@@ -1,3 +1,16 @@
-node_modules/
-dist/
-*.env
+# Written by Terraform
+.terraform*
+terraform.tfstate*
+
+# Environment
+.env
+
+# Misc
+terraform-service-key.json
+
+# dependencies
+/node_modules
+
+# production
+/build
+/dist
