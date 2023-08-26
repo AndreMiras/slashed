@@ -41,6 +41,14 @@ resource "google_cloud_run_v2_job" "indexer" {
             }
           }
         }
+        env {
+          name  = "FETCH_BATCH_SIZE"
+          value = 10
+        }
+        env {
+          name  = "PROCESS_CHAIN_BATCH_SIZE"
+          value = 100
+        }
       }
     }
   }
