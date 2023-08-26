@@ -41,5 +41,6 @@ Restore:
 
 ```sh
 cat backup_data.sql | \
-docker run -i --env=PGPASSWORD --rm postgres psql -h $IP -p 54322 -d postgres -U postgres
+docker run -i --env=PGPASSWORD --add-host=host.docker.internal:host-gateway \
+--rm postgres psql -h host.docker.internal -p 54322 -d postgres -U postgres
 ```
