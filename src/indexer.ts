@@ -98,6 +98,11 @@ const isBlockResultsResponse34 = (
   );
 };
 
+const isBlockResultsResponse37 = (
+  obj: BlockResultsResponse,
+): obj is BlockResultsResponse37 =>
+  typeof obj.beginBlockEvents[0]?.attributes[0]?.key === "string";
+
 /**
  * Filter for slashing events only.
  * Note that Kujira has a bug where the slashing event is split in 2.
@@ -114,9 +119,10 @@ const getSlashEventsForBlockResults = (
       beginBlockEventsFilter,
     );
   }
-  return (blockResults.beginBlockEvents as BlockEvent37[]).filter(
-    beginBlockEventsFilter,
-  );
+  assert.ok(isBlockResultsResponse37(blockResults));
+  return (
+    (blockResults as BlockResultsResponse37).beginBlockEvents as BlockEvent37[]
+  ).filter(beginBlockEventsFilter);
 };
 
 const getSlashEvents = async (
