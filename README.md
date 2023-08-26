@@ -1,5 +1,7 @@
 # Slashed Indexer
 
+[![Tests](https://github.com/AndreMiras/slashed/actions/workflows/tests.yml/badge.svg)](https://github.com/AndreMiras/slashed/actions/workflows/tests.yml)
+
 The indexer for Slashed.
 Looks for slashing events using an archive node RPC, stores the events in database.
 

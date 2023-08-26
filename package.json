@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "ts-node src/indexer.ts",
     "dev:debug": "node --inspect -r ts-node/register src/indexer.ts",
-    "lint:prettier": "prettier --check 'src/**/*.{ts,sql}' *.md",
-    "format:prettier": "prettier --write 'src/**/*.{ts,sql}' *.md",
+    "lint:prettier": "prettier --check 'src/**/*.{ts,sql}' '.github/**/*.yml' *.md",
+    "format:prettier": "prettier --write 'src/**/*.{ts,sql}' '.github/**/*.yml' *.md",
     "lint:eslint": "eslint src",
     "format:eslint": "eslint --fix src",
     "lint": "npm run lint:prettier && npm run lint:eslint",
