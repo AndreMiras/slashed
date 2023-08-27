@@ -3,7 +3,11 @@ resource "google_cloud_run_v2_job" "indexer" {
   name     = "${var.service_name}-indexer-${each.key}-cloud-run-job"
   location = var.region
   template {
-    task_count = 1
+    parallelism = 1
+    task_count  = 1
+    labels = {
+      chain = each.key
+    }
     template {
       timeout         = "${var.run_job_timeout * 60}s"
       max_retries     = 1
