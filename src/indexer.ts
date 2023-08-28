@@ -89,7 +89,7 @@ const beginBlockEventsFilter = (event: BlockEvent) =>
 const isBlockResultsResponse34 = (
   obj: BlockResultsResponse,
 ): obj is BlockResultsResponse34 => {
-  const attributeKey = obj.beginBlockEvents[0].attributes[0].key;
+  const attributeKey = obj.beginBlockEvents[0]?.attributes[0]?.key;
   // if obj.beginBlockEvents has no events then we are OK with it being any type since we can't
   // go through it anyway
   return (
