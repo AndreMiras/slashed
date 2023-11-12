@@ -18,6 +18,9 @@ npm run dev
 
 Add the new `chain_name` to `src/chains.ts` and start the indexer with `CHAIN_NAME` and `TENDERMINT_RPC_URL`.
 
+On the infra side update `terraform/variables.tf` with the new `chain_name`.
+We also need to create a new `slashed-chain_name-tendermint-rpc` entry in GCP Secret Manager.
+
 ## DB backup & restore
 
 Backup everything:

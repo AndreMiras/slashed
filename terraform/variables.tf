@@ -53,6 +53,7 @@ variable "chains" {
     "chihuahua",
     "composable",
     "evmos",
+    "gravity",
     "kujira",
     "meme",
     "nois",
