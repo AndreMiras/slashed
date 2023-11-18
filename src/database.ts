@@ -137,6 +137,44 @@ const insertSlashEvent = async (chainId: number, slashEvent: SlashEvent) => {
 };
 
 /**
+ * Upserts validators to the database, ignores duplicates.
+ */
+const upsertValidators = async (
+  rows: {
+    chainId: number;
+    moniker: string;
+    account: string;
+    valoper: string;
+    valcons: string;
+    consensusPubkey: string;
+  }[],
+) => {
+  const supabase = getSupabaseClient();
+  const upsertRows = rows.map(
+    ({
+      chainId: chain_id,
+      moniker,
+      account: account_address,
+      valoper: valoper_address,
+      valcons: valcons_address,
+      consensusPubkey: consensus_pubkey,
+    }) => ({
+      chain_id,
+      moniker,
+      account_address,
+      valoper_address,
+      valcons_address,
+      consensus_pubkey,
+    }),
+  );
+  const { error } = await supabase.from("validators").upsert(upsertRows, {
+    onConflict: "chain_id,consensus_pubkey",
+    ignoreDuplicates: false,
+  });
+  handlePostgrestError(error);
+};
+
+/**
  * Returns rows with null timestamps.
  */
 const selectNullTimestamps = async (chainId: number) => {
@@ -159,5 +197,6 @@ export {
   upsertBlocks,
   upsertBlock,
   insertSlashEvent,
+  upsertValidators,
   selectNullTimestamps,
 };

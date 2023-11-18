@@ -36,7 +36,7 @@ Backup data only on a subset of tables:
 ```sh
 docker run -it --env=PGPASSWORD --rm postgres \
 pg_dump -h db.decrqnsfynvibkranfzq.supabase.co -p 5432 -d postgres -U postgres \
---data-only --table chains --table slashing_events --table sync_statuses \
+--data-only --table blocks --table chains --table slashing_events --table sync_statuses --table validators \
 > backup_data.sql
 ```
 

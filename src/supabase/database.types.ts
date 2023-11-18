@@ -142,6 +142,43 @@ export interface Database {
           },
         ];
       };
+      validators: {
+        Row: {
+          account_address: string | null;
+          chain_id: number;
+          consensus_pubkey: string | null;
+          id: number;
+          moniker: string | null;
+          valcons_address: string | null;
+          valoper_address: string | null;
+        };
+        Insert: {
+          account_address?: string | null;
+          chain_id: number;
+          consensus_pubkey?: string | null;
+          id?: never;
+          moniker?: string | null;
+          valcons_address?: string | null;
+          valoper_address?: string | null;
+        };
+        Update: {
+          account_address?: string | null;
+          chain_id?: number;
+          consensus_pubkey?: string | null;
+          id?: never;
+          moniker?: string | null;
+          valcons_address?: string | null;
+          valoper_address?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validators_chain_id_fkey";
+            columns: ["chain_id"];
+            referencedRelation: "chains";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;

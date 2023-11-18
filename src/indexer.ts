@@ -1,6 +1,8 @@
 import assert from "assert";
 import * as dotenv from "dotenv";
 import _ from "lodash";
+import { chains } from "chain-registry";
+import { Chain } from "@chain-registry/types";
 import {
   TendermintClient,
   Tendermint34Client,
@@ -14,8 +16,14 @@ import {
   BlockResultsResponse as BlockResultsResponse37,
   Event as BlockEvent37,
 } from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
-import chains from "./chains";
-import { SlashEvent } from "./types";
+import supportedChains from "./chains";
+import { SlashEvent, CosmosValidator } from "./types";
+import {
+  handleHttpError,
+  retry,
+  pubKeyToBench32,
+  operatorAddressToAccount,
+} from "./utils";
 import {
   selectChain,
   upsertChains,
@@ -24,6 +32,7 @@ import {
   upsertBlocks,
   upsertBlock,
   insertSlashEvent,
+  upsertValidators,
   selectNullTimestamps,
 } from "./database";
 
@@ -334,6 +343,85 @@ const getEndHeight = async (client: TendermintClient) => {
 };
 
 /**
+ * Maps our application chain name to the chain-registry one.
+ */
+const chainAlias = (chainName: string): string =>
+  ({
+    gravity: "gravitybridge",
+  })[chainName] || chainName;
+
+const getChainInfo = (chainName: string): Chain | undefined =>
+  chains.find(({ chain_name }) => chain_name === chainName);
+
+const getChainRestUrl = (chainName: string): string => {
+  const chainInfo = getChainInfo(chainAlias(chainName));
+  const restList = chainInfo?.apis?.rest || [];
+  assert.ok(restList.length > 0, `No REST for this chain (${chainName})`);
+  const rest = _.sample(restList);
+  return rest!.address;
+};
+
+/**
+ * Fetches validators metadata (moniker, consensus pubkey, operator address...).
+ */
+const fetchValidators = async (restUrl: string, paginationOffset = 0) => {
+  const params = new URLSearchParams({
+    "pagination.offset": paginationOffset.toString(),
+  });
+  const url = `${restUrl}/cosmos/staking/v1beta1/validators?${params.toString()}`;
+  const response = await fetch(url);
+  handleHttpError(response);
+  const { validators } = await response.json();
+  return validators;
+};
+
+const fetchAllValidators = async (
+  restUrl: string,
+): Promise<CosmosValidator[]> => {
+  let allValidators: CosmosValidator[] = [];
+  let validators = [];
+  do {
+    validators = await fetchValidators(restUrl, allValidators.length);
+    allValidators = [...allValidators, ...validators];
+  } while (validators.length > 0);
+  return allValidators;
+};
+
+/**
+ * Returns the validator consensus address from the prefix and consensus public key.
+ */
+const validatorValcons = (prefix: string, consensusPubkey: string): string =>
+  pubKeyToBench32(`${prefix}valcons`, consensusPubkey);
+
+/**
+ * Fetches and stores validators addresses.
+ * - moniker
+ * - consensus public key
+ * - account address
+ * - valoper address
+ * - valcons address
+ */
+const syncAddressBook = async (chainId: number, chainName: string) => {
+  const chainInfo = getChainInfo(chainAlias(chainName));
+  assert.ok(chainInfo, `Chain not found in the registry (${chainName})`);
+  const prefix = chainInfo!.bech32_prefix;
+  const validators = await retry(() =>
+    fetchAllValidators(getChainRestUrl(chainName)),
+  );
+  const validatorsRows = validators.map(
+    ({ operator_address, consensus_pubkey, description }) => ({
+      chainId,
+      moniker: description.moniker,
+      account: operatorAddressToAccount(operator_address),
+      valoper: operator_address,
+      valcons: validatorValcons(prefix, consensus_pubkey.key),
+      consensusPubkey: consensus_pubkey.key,
+    }),
+  );
+  await upsertValidators(validatorsRows);
+};
+
+/**
  * The version of the status endpoint can be inconsistent from one client to another.
  * e.g. "v0.34.24", "0.34.28" or "0.37.1"
  */
@@ -374,14 +462,15 @@ const getTendermintClient = async (
 
 const main = async () => {
   const chainName = CHAIN_NAME;
-  await upsertChains(chains);
+  await upsertChains(supportedChains);
   const client = await getTendermintClient(TENDERMINT_RPC_URL);
   const { id: chainId } = await selectChain(chainName);
+  await syncAddressBook(chainId, chainName);
   const startHeight = await getStartHeight(chainId);
   const endHeight = await getEndHeight(client);
   console.log("main()");
   console.log({ chainName, startHeight, endHeight });
-  processChain(client, chainId, startHeight, endHeight);
+  await processChain(client, chainId, startHeight, endHeight);
   client.disconnect();
 };
 
