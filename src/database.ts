@@ -148,6 +148,7 @@ const upsertValidators = async (
     valcons: string;
     consensusPubkey: string;
   }[],
+  ignoreDuplicates = false,
 ) => {
   const supabase = getSupabaseClient();
   const upsertRows = rows.map(
@@ -168,11 +169,27 @@ const upsertValidators = async (
     }),
   );
   const { error } = await supabase.from("validators").upsert(upsertRows, {
-    onConflict: "chain_id,consensus_pubkey",
-    ignoreDuplicates: false,
+    onConflict: "valcons_address",
+    ignoreDuplicates,
   });
   handlePostgrestError(error);
 };
+
+/**
+ * Upserts a single validator and ignores/skips duplicates on conflict.
+ */
+const upsertValidator = async (
+  chainId: number,
+  valcons: string,
+  moniker = "",
+  account = "",
+  valoper = "",
+  consensusPubkey = "",
+) =>
+  upsertValidators(
+    [{ chainId, valcons, moniker, account, valoper, consensusPubkey }],
+    true,
+  );
 
 /**
  * Returns rows with null timestamps.
@@ -198,5 +215,6 @@ export {
   upsertBlock,
   insertSlashEvent,
   upsertValidators,
+  upsertValidator,
   selectNullTimestamps,
 };

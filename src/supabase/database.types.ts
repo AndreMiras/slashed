@@ -104,6 +104,12 @@ export interface Database {
         };
         Relationships: [
           {
+            foreignKeyName: "slashing_events_address_fkey";
+            columns: ["address"];
+            referencedRelation: "validators";
+            referencedColumns: ["valcons_address"];
+          },
+          {
             foreignKeyName: "slashing_events_chain_id_block_height_fkey";
             columns: ["chain_id", "block_height"];
             referencedRelation: "blocks";
@@ -144,31 +150,31 @@ export interface Database {
       };
       validators: {
         Row: {
-          account_address: string | null;
+          account_address: string;
           chain_id: number;
-          consensus_pubkey: string | null;
+          consensus_pubkey: string;
           id: number;
-          moniker: string | null;
+          moniker: string;
           valcons_address: string | null;
-          valoper_address: string | null;
+          valoper_address: string;
         };
         Insert: {
-          account_address?: string | null;
+          account_address: string;
           chain_id: number;
-          consensus_pubkey?: string | null;
+          consensus_pubkey: string;
           id?: never;
-          moniker?: string | null;
+          moniker: string;
           valcons_address?: string | null;
-          valoper_address?: string | null;
+          valoper_address: string;
         };
         Update: {
-          account_address?: string | null;
+          account_address?: string;
           chain_id?: number;
-          consensus_pubkey?: string | null;
+          consensus_pubkey?: string;
           id?: never;
-          moniker?: string | null;
+          moniker?: string;
           valcons_address?: string | null;
-          valoper_address?: string | null;
+          valoper_address?: string;
         };
         Relationships: [
           {

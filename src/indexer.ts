@@ -33,6 +33,7 @@ import {
   upsertBlock,
   insertSlashEvent,
   upsertValidators,
+  upsertValidator,
   selectNullTimestamps,
 } from "./database";
 
@@ -248,6 +249,7 @@ const insertSlashEvents = (
       slashHeight,
     );
     decodedSlashEvents.forEach(async (slashEvent) => {
+      await upsertValidator(chainId, slashEvent.address);
       await upsertBlock(chainId, slashEvent.blockHeight);
       await insertSlashEvent(chainId, slashEvent);
     });
