@@ -465,9 +465,9 @@ const getTendermintClient = async (
 const main = async () => {
   const chainName = CHAIN_NAME;
   await upsertChains(supportedChains);
-  const client = await getTendermintClient(TENDERMINT_RPC_URL);
   const { id: chainId } = await selectChain(chainName);
   await syncAddressBook(chainId, chainName);
+  const client = await getTendermintClient(TENDERMINT_RPC_URL);
   const startHeight = await getStartHeight(chainId);
   const endHeight = await getEndHeight(client);
   console.log("main()");
