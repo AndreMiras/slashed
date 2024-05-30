@@ -19,13 +19,13 @@ endif
 devops/terraform/fmt:
 	terraform -chdir=terraform fmt -recursive -diff
 
-devops/terraform/init: ensure-account-set
+devops/terraform/init:
 	terraform -chdir=terraform init
 
-devops/terraform/plan: ensure-account-set
+devops/terraform/plan:
 	terraform -chdir=terraform plan
 
-devops/terraform/apply: ensure-account-set
+devops/terraform/apply:
 	terraform -chdir=terraform apply -auto-approve
 
 devops/terraform/output:
