@@ -2,10 +2,14 @@ import assert from "assert";
 import { sha256 } from "@cosmjs/crypto";
 import { fromBase64, toBech32, fromBech32 } from "@cosmjs/encoding";
 
-const handleHttpError = (response: Response) => {
+/**
+ * Handles HTTP error response, raises an exception on non OK status.
+ */
+const handleHttpError = async (response: Response, consoleError = true) => {
   if (!response.ok) {
-    const errorMessage = `${response.status} ${response.statusText}`;
-    console.error(errorMessage);
+    const bodyText = await response.text();
+    const errorMessage = `${response.status} ${response.statusText} (${response.url}): ${bodyText}`;
+    consoleError && console.error(errorMessage);
     throw new Error(errorMessage);
   }
 };
