@@ -22,6 +22,11 @@ variable "region" {
   default = "us-east1"
 }
 
+variable "registry_region" {
+  type    = string
+  default = "us"
+}
+
 variable "zone" {
   type    = string
   default = "us-east1-a"
@@ -43,6 +48,11 @@ variable "image_tag" {
 variable "indexer_image" {
   type    = string
   default = "indexer"
+}
+
+variable "repository_id" {
+  type    = string
+  default = "public"
 }
 
 variable "chains" {
@@ -67,5 +77,5 @@ variable "run_job_timeout" {
 }
 
 locals {
-  indexer_image = "gcr.io/${var.project}/${var.indexer_image}:${var.image_tag}"
+  indexer_image = "${var.registry_region}-docker.pkg.dev/${var.project}/${var.repository_id}/${var.indexer_image}:${var.image_tag}"
 }

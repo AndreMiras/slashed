@@ -2,7 +2,10 @@ SHELL=/bin/bash
 IMAGE_TAG=latest
 PROJECT=slashed-397106
 CLOUD_RUN_REGION=us-east1
-REGISTRY=gcr.io/$(PROJECT)
+REGISTRY_REGION=us-docker
+REGISTRY_HOSTNAME=$(REGISTRY_REGION).pkg.dev
+REGISTRY_REPOSITORY=public
+REGISTRY=$(REGISTRY_HOSTNAME)/$(PROJECT)/$(REGISTRY_REPOSITORY)
 INDEXER_IMAGE_NAME=indexer
 INDEXER_DOCKER_IMAGE=$(REGISTRY)/$(INDEXER_IMAGE_NAME)
 ENV_FILE=.env
@@ -57,10 +60,12 @@ docker/build:
 	docker build --tag=$(INDEXER_DOCKER_IMAGE):$(IMAGE_TAG) .
 
 docker/login: ensure-account-set
-	gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
+	CLOUDSDK_CORE_ACCOUNT=$(CLOUDSDK_CORE_ACCOUNT) gcloud auth configure-docker $(REGISTRY_REGION).pkg.dev
+	CLOUDSDK_CORE_ACCOUNT=$(CLOUDSDK_CORE_ACCOUNT) gcloud auth print-access-token | docker login --username oauth2accesstoken --password-stdin https://$(REGISTRY_REGION).pkg.dev
+
 
 docker/push: ensure-account-set
-	docker push $(INDEXER_DOCKER_IMAGE):$(IMAGE_TAG)
+	CLOUDSDK_CORE_ACCOUNT=$(CLOUDSDK_CORE_ACCOUNT) docker push $(INDEXER_DOCKER_IMAGE):$(IMAGE_TAG)
 
 docker/run:
 	docker run $(DOCKER_IT) --env-file .env --rm $(INDEXER_DOCKER_IMAGE)
