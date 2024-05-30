@@ -1,6 +1,8 @@
 import assert from "assert";
+import _ from "lodash";
 import * as dotenv from "dotenv";
 import { PostgrestError, createClient } from "@supabase/supabase-js";
+import * as constants from "./constants";
 import { Database } from "./supabase/database.types";
 import { SlashEvent } from "./types";
 
@@ -151,6 +153,8 @@ const upsertValidators = async (
   ignoreDuplicates = false,
 ) => {
   const supabase = getSupabaseClient();
+  const length = constants.MAX_MONIKER_LENGTH_WITH_OMISSION;
+  const omission = constants.OMISSION;
   const upsertRows = rows.map(
     ({
       chainId: chain_id,
@@ -161,7 +165,7 @@ const upsertValidators = async (
       consensusPubkey: consensus_pubkey,
     }) => ({
       chain_id,
-      moniker,
+      moniker: _.truncate(moniker, { length, omission }),
       account_address,
       valoper_address,
       valcons_address,
