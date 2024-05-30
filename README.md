@@ -21,6 +21,14 @@ Add the new `chain_name` to `src/chains.ts` and start the indexer with `CHAIN_NA
 On the infra side update `terraform/variables.tf` with the new `chain_name`.
 We also need to create a new `slashed-chain_name-tendermint-rpc` entry in GCP Secret Manager.
 
+## Local database
+
+Start the local database with:
+
+```sh
+npm run supabase start
+```
+
 ## DB backup & restore
 
 Backup everything:
@@ -67,6 +75,6 @@ docker run -i --env=PGPASSWORD --add-host=host.docker.internal:host-gateway \
 
 ## Tests
 
-```
+```sh
 npm run test
 ```
