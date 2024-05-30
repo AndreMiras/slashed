@@ -31,6 +31,6 @@ resource "google_project_service" "cloud_run_api" {
 
 resource "google_project_service" "cloudscheduler_api" {
   project            = var.project
-  service            = "run.googleapis.com"
+  service            = "cloudscheduler.googleapis.com"
   disable_on_destroy = false
 }

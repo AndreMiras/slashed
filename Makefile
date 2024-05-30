@@ -5,11 +5,15 @@ CLOUD_RUN_REGION=us-east1
 REGISTRY=gcr.io/$(PROJECT)
 INDEXER_IMAGE_NAME=indexer
 INDEXER_DOCKER_IMAGE=$(REGISTRY)/$(INDEXER_IMAGE_NAME)
+ENV_FILE=.env
 CLOUDSDK_CORE_ACCOUNT?=notset
 ifndef CI
 DOCKER_IT=-it
 endif
 
+ifneq (,$(wildcard $(ENV_FILE)))
+    include $(ENV_FILE)
+endif
 
 ensure-account-set:
 ifeq ($(CLOUDSDK_CORE_ACCOUNT),notset)
