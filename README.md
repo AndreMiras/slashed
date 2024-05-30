@@ -64,3 +64,9 @@ cat dump/backup_data.dump | \
 docker run -i --env=PGPASSWORD --add-host=host.docker.internal:host-gateway \
 --rm postgres pg_restore -h host.docker.internal -p 54322 -d postgres -U postgres
 ```
+
+## Tests
+
+```
+npm run test
+```

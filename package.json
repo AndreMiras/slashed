@@ -13,7 +13,8 @@
     "format:eslint": "eslint --fix src",
     "lint": "npm run lint:prettier && npm run lint:eslint",
     "format": "npm run format:prettier && npm run format:eslint",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha --require ts-node/register src/*.test.ts",
+    "test:debug": "mocha --require ts-node/register/transpile-only --inspect src/*.test.ts",
     "supabase": "supabase --workdir src",
     "supabase:gen:types": "supabase --workdir src gen types typescript --local > src/supabase/database.types.ts",
     "build": "tsc"
@@ -28,8 +29,10 @@
   },
   "devDependencies": {
     "@types/lodash": "^4.14.195",
+    "@types/mocha": "^10.0.6",
     "@typescript-eslint/eslint-plugin": "^6.1.0",
     "eslint": "^8.45.0",
+    "mocha": "^10.4.0",
     "prettier": "^3.0.0",
     "prettier-plugin-sql": "^0.15.1",
     "sql-formatter": "^12.2.4",
