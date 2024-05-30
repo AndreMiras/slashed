@@ -1,3 +1,4 @@
+import assert from "assert";
 import { sha256 } from "@cosmjs/crypto";
 import { fromBase64, toBech32, fromBech32 } from "@cosmjs/encoding";
 
@@ -39,10 +40,24 @@ const operatorAddressToAccount = (address: string): string => {
   return toBech32(subPrefix, data);
 };
 
+/**
+ * Helper function to get an environment variable.
+ * Asserts that the variable is defined and returns its value.
+ *
+ * @param {string} varName - The name of the environment variable.
+ * @returns {string} - The value of the environment variable.
+ */
+const getEnvVariable = (varName: string): string => {
+  const value = process.env[varName];
+  assert.ok(value, `${varName} environment variable is required.`);
+  return value;
+};
+
 export {
   handleHttpError,
   retry,
   pubKeyToSha256,
   pubKeyToBench32,
   operatorAddressToAccount,
+  getEnvVariable,
 };

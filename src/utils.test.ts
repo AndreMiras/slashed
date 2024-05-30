@@ -23,4 +23,33 @@ describe("utils", () => {
       assert.strictEqual(result, expected);
     });
   });
+
+  describe("getEnvVariable", () => {
+    before(() => {
+      process.env.TEST_VAR = "test_value";
+      process.env.EMPTY_VAR = "";
+    });
+
+    after(() => {
+      delete process.env.TEST_VAR;
+      delete process.env.EMPTY_VAR;
+    });
+
+    it("should return the value of a defined environment variable", () => {
+      const result = utils.getEnvVariable("TEST_VAR");
+      assert.strictEqual(result, "test_value");
+    });
+
+    it("should throw an error if the environment variable is not defined", () => {
+      assert.throws(() => {
+        utils.getEnvVariable("UNDEFINED_VAR");
+      }, /UNDEFINED_VAR environment variable is required./);
+    });
+
+    it("should throw an error if the environment variable is empty", () => {
+      assert.throws(() => {
+        utils.getEnvVariable("EMPTY_VAR");
+      }, /EMPTY_VAR environment variable is required./);
+    });
+  });
 });

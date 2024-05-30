@@ -19,6 +19,7 @@ import {
 import supportedChains from "./chains";
 import { SlashEvent, CosmosValidator } from "./types";
 import {
+  getEnvVariable,
   handleHttpError,
   retry,
   pubKeyToBench32,
@@ -39,10 +40,8 @@ import {
 
 dotenv.config();
 
-const CHAIN_NAME = process.env.CHAIN_NAME;
-assert.ok(CHAIN_NAME);
-const TENDERMINT_RPC_URL = process.env.TENDERMINT_RPC_URL;
-assert.ok(TENDERMINT_RPC_URL);
+const CHAIN_NAME = getEnvVariable("CHAIN_NAME");
+const TENDERMINT_RPC_URL = getEnvVariable("TENDERMINT_RPC_URL");
 const FETCH_BATCH_SIZE = Number(process.env.FETCH_BATCH_SIZE ?? 100);
 assert.ok(!isNaN(FETCH_BATCH_SIZE));
 const PROCESS_CHAIN_BATCH_SIZE = Number(
