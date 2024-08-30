@@ -20,7 +20,7 @@ const retry = async <T>(fn: () => Promise<T>, retries = 3): Promise<T> => {
   } catch (error) {
     console.error(error);
     if (retries > 0) {
-      return retry(fn, retries - 1);
+      return await retry(fn, retries - 1);
     } else {
       throw error;
     }

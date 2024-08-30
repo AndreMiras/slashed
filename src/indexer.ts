@@ -406,8 +406,10 @@ const syncAddressBook = async (chainId: number, chainName: string) => {
   const chainInfo = getChainInfo(chainAlias(chainName));
   assert.ok(chainInfo, `Chain not found in the registry (${chainName})`);
   const prefix = chainInfo!.bech32_prefix;
-  const validators = await retry(() =>
-    fetchAllValidators(getChainRestUrl(chainName)),
+  const retryCount = 5;
+  const validators = await retry(
+    () => fetchAllValidators(getChainRestUrl(chainName)),
+    retryCount,
   );
   const validatorsRows = validators.map(
     ({ operator_address, consensus_pubkey, description }) => ({
