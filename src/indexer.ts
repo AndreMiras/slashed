@@ -448,17 +448,11 @@ const getTendermintClient = async (
   rpcUrl: string,
 ): Promise<TendermintClient> => {
   const version = cleanVersion(await getRpcNodeVersion(rpcUrl));
-  const [major, minor] = version.split(".");
-  const majorMinor = `${major}.${minor}`;
-  const clients: Record<
-    string,
-    typeof Tendermint34Client | typeof Tendermint37Client
-  > = {
-    "0.34": Tendermint34Client,
-    "0.37": Tendermint37Client,
-  };
-  assert.ok(majorMinor in clients);
-  return clients[majorMinor].connect(rpcUrl);
+  const [major, minor] = version.split(".").map(Number);
+  const majorMinor = parseFloat(`${major}.${minor}`);
+  const ClientClass =
+    majorMinor < 0.37 ? Tendermint34Client : Tendermint37Client;
+  return ClientClass.connect(rpcUrl);
 };
 
 const main = async () => {
