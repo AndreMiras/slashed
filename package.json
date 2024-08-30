@@ -43,7 +43,7 @@
   "dependencies": {
     "@cosmjs/tendermint-rpc": "^0.31.3",
     "@supabase/supabase-js": "^2.31.0",
-    "chain-registry": "^1.61.7",
+    "chain-registry": "^1.63.75",
     "dotenv": "^16.3.1",
     "lodash": "^4.17.21"
   }
