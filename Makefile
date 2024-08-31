@@ -39,7 +39,7 @@ devops/terraform/output:
 	terraform -chdir=terraform output
 
 devops/gcloud/run/slashed-indexer-cloud-run-job/%: ensure-account-set
-	gcloud beta --project $(PROJECT) run jobs execute slashed-indexer-$*-cloud-run-job --wait --region $(CLOUD_RUN_REGION)
+	CLOUDSDK_CORE_ACCOUNT=$(CLOUDSDK_CORE_ACCOUNT) gcloud beta --project $(PROJECT) run jobs execute slashed-indexer-$*-cloud-run-job --wait --region $(CLOUD_RUN_REGION)
 
 lint/terraform:
 	terraform -chdir=terraform fmt -recursive -check -diff
