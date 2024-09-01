@@ -1,4 +1,5 @@
 const CHAINS = [
+  "bostrom",
   "canto",
   "chihuahua",
   "composable",

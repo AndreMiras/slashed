@@ -59,6 +59,7 @@ variable "chains" {
   type        = list(string)
   description = "List of supported chains."
   default = [
+    "bostrom",
     "canto",
     "chihuahua",
     "composable",
