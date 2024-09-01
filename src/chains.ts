@@ -3,6 +3,7 @@ const CHAINS = [
   "canto",
   "chihuahua",
   "composable",
+  "cosmoshub",
   "evmos",
   "gravity",
   "kujira",

@@ -63,6 +63,7 @@ variable "chains" {
     "canto",
     "chihuahua",
     "composable",
+    "cosmoshub",
     "evmos",
     "gravity",
     "kujira",
