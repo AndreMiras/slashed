@@ -37,18 +37,9 @@ interface NetInfoResponse {
 }
 
 /**
- * Interface representing the response from the /block_results endpoint.
+ * Interface representing an error response from the /block and /block_results endpoint.
  */
-interface BlockResultsResponse {
-  result: {
-    height: string;
-  };
-}
-
-/**
- * Interface representing an error response from the /block_results endpoint.
- */
-interface BlockResultsError {
+interface RpcError {
   jsonrpc: string;
   id: number;
   error: {
@@ -59,12 +50,37 @@ interface BlockResultsError {
 }
 
 /**
+ * Interface representing the response from the /block_results endpoint.
+ */
+interface BlockResultsResponse {
+  result: {
+    height: string;
+  };
+}
+
+/**
+ * Interface representing the simplified response from the /block endpoint,
+ * focusing only on chain_id and height.
+ */
+interface BlockResponse {
+  result: {
+    block: {
+      header: {
+        chain_id: string;
+        height: string;
+      };
+    };
+  };
+}
+
+/**
  * Interface representing the response from the /status endpoint.
  */
 interface StatusResponse {
   result: {
     node_info: {
       moniker: string;
+      network: string;
     };
   };
 }
@@ -74,6 +90,7 @@ interface StatusResponse {
  */
 interface PeerBlockInfo {
   moniker: string;
+  network: string | null;
   address: string;
   height: number | null;
   minBlockHeight: number | null;
@@ -84,7 +101,12 @@ interface PeerBlockInfo {
  */
 type PeersBlocksMap = Record<
   string,
-  { address: string; height: number | null; minBlockHeight: number | null }
+  {
+    network: string | null;
+    address: string;
+    height: number | null;
+    minBlockHeight: number | null;
+  }
 >;
 
 /**
@@ -133,7 +155,7 @@ const getBlockResults = async (
   height?: number,
 ): Promise<{
   data: BlockResultsResponse | null;
-  error: BlockResultsError | null;
+  error: RpcError | null;
 }> => {
   const params = height
     ? {
@@ -151,6 +173,35 @@ const getBlockResults = async (
 };
 
 /**
+ * Fetches the block for a given height from the RPC endpoint.
+ *
+ * @param rpcUrl - The URL of the RPC endpoint.
+ * @param height - The block height to fetch (optional).
+ * @returns An object containing either the data or an error.
+ */
+const getBlock = async (
+  rpcUrl: string,
+  height?: number,
+): Promise<{
+  data: BlockResponse | null;
+  error: RpcError | null;
+}> => {
+  const params = height
+    ? {
+        height: height.toString(),
+      }
+    : {};
+  const url = new URL(`${rpcUrl}/block`);
+  url.search = new URLSearchParams(params as Record<string, string>).toString();
+  const response = await fetch(url);
+  const responseJson = await response.json();
+  const [data, error] = response.ok
+    ? [responseJson, null]
+    : [null, responseJson];
+  return { data, error };
+};
+
+/**
  * Determines the minimum block height available on the node.
  *
  * @param rpcUrl - The URL of the RPC endpoint.
@@ -158,7 +209,7 @@ const getBlockResults = async (
  */
 const getMinBlockHeight = async (rpcUrl: string): Promise<number | null> => {
   const height = 1;
-  const { data: blockResults, error } = await getBlockResults(rpcUrl, height);
+  const { data: block, error } = await getBlock(rpcUrl, height);
   if (!error) {
     return height;
   }
@@ -168,7 +219,7 @@ const getMinBlockHeight = async (rpcUrl: string): Promise<number | null> => {
     const lowestHeight = parseInt(match[1], 10);
     return lowestHeight;
   } else {
-    console.error(`Unexpected error fetching block results: ${errorMessage}`);
+    console.error(`Unexpected error fetching block: ${errorMessage}`);
   }
   return null;
 };
@@ -177,23 +228,24 @@ const getMinBlockHeight = async (rpcUrl: string): Promise<number | null> => {
  * Fetches the block results and minimum block height for a node.
  *
  * @param moniker - The moniker of the node.
- * @param rpcUrl - The URL of the RPC endpoint.
+ * @param address - The URL of the RPC endpoint.
  * @returns An object containing the block information for the node.
  */
-const fetchBlockResults = async (moniker: string, rpcUrl: string) => {
+const fetchBlockResults = async (moniker: string, address: string) => {
+  let network: string | null = null;
   let height: number | null = null;
   let minBlockHeight: number | null = null;
   try {
-    const { data: blockResults, error } = await getBlockResults(rpcUrl);
-    height = error ? null : Number(blockResults!.result.height);
-    minBlockHeight = height ? await getMinBlockHeight(rpcUrl) : null;
-  } catch (error) {
-    height = null;
-    minBlockHeight = null;
-  }
+    const { data: block, error } = await getBlock(address);
+    const header = error ? null : block!.result.block.header;
+    network = error ? null : header!.chain_id;
+    height = error ? null : Number(header!.height);
+    minBlockHeight = height ? await getMinBlockHeight(address) : null;
+  } catch (error) {}
   return {
-    moniker: moniker,
-    address: rpcUrl,
+    network,
+    moniker,
+    address,
     height,
     minBlockHeight,
   };
@@ -219,9 +271,9 @@ const fetchBlockResultsForPeer = async (peer: PeerInfo) => {
  */
 const addPeerBlockInfoToMap = (
   acc: PeersBlocksMap,
-  { moniker, address, height, minBlockHeight }: PeerBlockInfo,
+  { moniker, network, address, height, minBlockHeight }: PeerBlockInfo,
 ): PeersBlocksMap => {
-  acc[moniker] = { address, height, minBlockHeight };
+  acc[moniker] = { address, network, height, minBlockHeight };
   return acc;
 };
 
