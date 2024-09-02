@@ -78,3 +78,69 @@ docker run -i --env=PGPASSWORD --add-host=host.docker.internal:host-gateway \
 ```sh
 npm run test
 ```
+
+## How it works
+
+It works by querying the `block_results` RPC endpoint for each blocks and look for a slash event.
+For instance Canto got a slash event at block 10834497 which can be extracted like so:
+
+```sh
+http://localhost:26657/block_results?height=10834497 | \
+jq '.result.finalize_block_events[] | select(.type == "slash")'
+```
+
+Output:
+
+```
+{
+  "type": "slash",
+  "attributes": [
+    {
+      "key": "address",
+      "value": "cantovalcons1720m87a44r6h37pmuhkkwfs3d4x4str7g0acah",
+      "index": true
+    },
+    {
+      "key": "power",
+      "value": "1415",
+      "index": true
+    },
+    {
+      "key": "reason",
+      "value": "missing_signature",
+      "index": true
+    },
+    {
+      "key": "jailed",
+      "value": "cantovalcons1720m87a44r6h37pmuhkkwfs3d4x4str7g0acah",
+      "index": true
+    },
+    {
+      "key": "mode",
+      "value": "BeginBlock",
+      "index": false
+    }
+  ]
+}
+```
+
+We are currently querying each block sequentially to identify slashing events.
+However, there are heuristics that can accelerate this process.
+For example, the signing info query provides the most recent slashing information for each validator, allowing you to target specific blocks more effectively.
+
+This data is accessible through various methods:
+
+- Using the REST API: <http://localhost:1317/cosmos/slashing/v1beta1/signing_infos>
+- Using gRPC: grpcurl -plaintext localhost:9090 cosmos.slashing.v1beta1.Query/SigningInfos
+- Using the CLI: cantod query slashing signing-infos
+
+When using the CLI, you can supply the `--height` flag to search prior to the last recorded slashing event for each validator, allowing to backtrack efficiently. Unfortunately the height doesn't seem to be configurable using the REST API or gRPC.
+
+For more details, refer to the documentation:
+[Cosmos SDK Slashing Module](https://docs.cosmos.network/main/build/modules/slashing).
+
+This heuristic is not currently implemented, and there may be other strategies that could further optimize the process.
+If you know of any, we encourage you to share them.
+
+Note: We are actively looking for a more efficient method to directly query all slashing events across all blocks.
+If you have insights or suggestions, please feel free to contribute.
