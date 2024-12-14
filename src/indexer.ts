@@ -1,6 +1,5 @@
 import { Chain } from "@chain-registry/types";
 import {
-  Attribute as BlockEventAttribute34,
   BlockResultsResponse as BlockResultsResponse34,
   Event as BlockEvent34,
   TendermintClient,
@@ -8,7 +7,6 @@ import {
 import {
   BlockResultsResponse as BlockResultsResponse37,
   Event as BlockEvent37,
-  EventAttribute as BlockEventAttribute37,
 } from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
 import assert from "assert";
 import { chains } from "chain-registry";
@@ -29,7 +27,17 @@ import {
   upsertValidator,
   upsertValidators,
 } from "./database";
-import { CosmosValidator, SlashEvent } from "./types";
+import {
+  beginBlockEventsFilter,
+  decodeBlockEvent2Array,
+  decodeBlockEvent2Object,
+} from "./events";
+import {
+  BlockEvent,
+  BlockResultsResponse,
+  CosmosValidator,
+  SlashEvent,
+} from "./types";
 import {
   getEnvVariable,
   handleHttpError,
@@ -49,41 +57,6 @@ const PROCESS_CHAIN_BATCH_SIZE = Number(
 );
 assert.ok(!isNaN(PROCESS_CHAIN_BATCH_SIZE));
 
-type BlockEvent = BlockEvent34 | BlockEvent37;
-type BlockEventAttribute = BlockEventAttribute34 | BlockEventAttribute37;
-type BlockResultsResponse = BlockResultsResponse34 | BlockResultsResponse37;
-
-const decodeAttribute = (
-  decoder: TextDecoder,
-  attribute: BlockEventAttribute,
-) => {
-  const key =
-    attribute.key instanceof Uint8Array
-      ? decoder.decode(attribute.key)
-      : attribute.key;
-  const value =
-    attribute.value instanceof Uint8Array
-      ? decoder.decode(attribute.value)
-      : attribute.value;
-  return { key, value };
-};
-
-const decodeBlockEvent2Array = (
-  blockEvent: BlockEvent,
-): Record<string, string>[] => {
-  const { attributes } = blockEvent;
-  const decoder = new TextDecoder();
-  return attributes.map((attribute) => decodeAttribute(decoder, attribute));
-};
-
-const decodeBlockEvent2Object = (
-  blockEvent: BlockEvent,
-): Record<string, string> =>
-  _.chain(decodeBlockEvent2Array(blockEvent))
-    .keyBy("key")
-    .mapValues("value")
-    .value();
-
 const logBlockEvent = (blockEvent: BlockEvent) => {
   const attributes = decodeBlockEvent2Array(blockEvent);
   attributes.forEach((attribute) => {
@@ -91,9 +64,6 @@ const logBlockEvent = (blockEvent: BlockEvent) => {
     console.log("Key:", key, "Value:", value);
   });
 };
-
-const beginBlockEventsFilter = (event: BlockEvent) =>
-  event.type === "slash" && event.attributes.length >= 3;
 
 const isBlockResultsResponse34 = (
   obj: BlockResultsResponse,
