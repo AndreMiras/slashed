@@ -1,10 +1,11 @@
 /**
  * Functions to process, decode, and filter block events (e.g., slashing events).
  */
+import assert from "assert";
 import _ from "lodash";
 import { TextDecoder } from "util";
 
-import { BlockEvent, BlockEventAttribute } from "./types";
+import { BlockEvent, BlockEventAttribute, SlashEvent } from "./types";
 
 const decodeAttribute = (
   decoder: TextDecoder,
@@ -40,9 +41,28 @@ const decodeBlockEvent2Object = (
 const beginBlockEventsFilter = (event: BlockEvent) =>
   event.type === "slash" && event.attributes.length >= 3;
 
+const decodeSlashEvent = (
+  slashEvent: BlockEvent,
+  slashHeight: number,
+): SlashEvent => {
+  const decodedSlashEvent = decodeBlockEvent2Object(slashEvent);
+  const { address, power: rawPower, reason } = decodedSlashEvent;
+  assert.ok(address && rawPower && reason);
+  const power = Number(rawPower);
+  return { blockHeight: slashHeight, address, power, reason };
+};
+
+const decodeSlashEvents = (
+  slashEvents: BlockEvent[],
+  slashHeight: number,
+): SlashEvent[] =>
+  slashEvents.map((slashEvent) => decodeSlashEvent(slashEvent, slashHeight));
+
 export {
   beginBlockEventsFilter,
   decodeAttribute,
   decodeBlockEvent2Array,
   decodeBlockEvent2Object,
+  decodeSlashEvent,
+  decodeSlashEvents,
 };

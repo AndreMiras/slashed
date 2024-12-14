@@ -1,3 +1,6 @@
+/**
+ * Generic utility functions.
+ */
 import { sha256 } from "@cosmjs/crypto";
 import { fromBase64, fromBech32, toBech32 } from "@cosmjs/encoding";
 import assert from "assert";

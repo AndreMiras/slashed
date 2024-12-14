@@ -32,31 +32,15 @@ import {
   upsertValidator,
   upsertValidators,
 } from "./database";
-import {
-  beginBlockEventsFilter,
-  decodeBlockEvent2Array,
-  decodeBlockEvent2Object,
-} from "./events";
-import {
-  BlockEvent,
-  BlockResultsResponse,
-  CosmosValidator,
-  SlashEvent,
-} from "./types";
+import { beginBlockEventsFilter, decodeSlashEvents } from "./events";
+import { logDecodeSlashEvents, logSlashEvents } from "./logging";
+import { BlockEvent, BlockResultsResponse, CosmosValidator } from "./types";
 import {
   handleHttpError,
   operatorAddressToAccount,
   pubKeyToBench32,
   retry,
 } from "./utils";
-
-const logBlockEvent = (blockEvent: BlockEvent) => {
-  const attributes = decodeBlockEvent2Array(blockEvent);
-  attributes.forEach((attribute) => {
-    const { key, value } = attribute;
-    console.log("Key:", key, "Value:", value);
-  });
-};
 
 const isBlockResultsResponse34 = (
   obj: BlockResultsResponse,
@@ -158,43 +142,6 @@ const processBlockRangeChunks = async (
     {},
   );
   return slashEvents;
-};
-
-const logSlashEvents = (slashEvents: Record<number, BlockEvent[]>) => {
-  const slashHeights = _.sortBy(Object.keys(slashEvents).map(Number));
-  slashHeights.forEach((slashHeight: number) => {
-    console.log("Slash event(s) at block", slashHeight);
-    slashEvents[slashHeight].forEach((slashEvent) => logBlockEvent(slashEvent));
-  });
-};
-
-const decodeSlashEvent = (
-  slashEvent: BlockEvent,
-  slashHeight: number,
-): SlashEvent => {
-  const decodedSlashEvent = decodeBlockEvent2Object(slashEvent);
-  const { address, power: rawPower, reason } = decodedSlashEvent;
-  assert.ok(address && rawPower && reason);
-  const power = Number(rawPower);
-  return { blockHeight: slashHeight, address, power, reason };
-};
-
-const decodeSlashEvents = (
-  slashEvents: BlockEvent[],
-  slashHeight: number,
-): SlashEvent[] =>
-  slashEvents.map((slashEvent) => decodeSlashEvent(slashEvent, slashHeight));
-
-const logDecodeSlashEvents = (slashEvents: Record<number, BlockEvent[]>) => {
-  const slashHeights = _.sortBy(Object.keys(slashEvents).map(Number));
-  slashHeights.forEach((slashHeight: number) => {
-    console.log("Slash event(s) at block", slashHeight);
-    const decodedSlashEvents = decodeSlashEvents(
-      slashEvents[slashHeight],
-      slashHeight,
-    );
-    console.log({ decodedSlashEvents });
-  });
 };
 
 /**
