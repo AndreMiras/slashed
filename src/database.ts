@@ -1,7 +1,8 @@
+import { createClient, PostgrestError } from "@supabase/supabase-js";
 import assert from "assert";
-import _ from "lodash";
 import * as dotenv from "dotenv";
-import { PostgrestError, createClient } from "@supabase/supabase-js";
+import _ from "lodash";
+
 import * as constants from "./constants";
 import { Database } from "./supabase/database.types";
 import { SlashEvent } from "./types";
@@ -212,15 +213,15 @@ const selectNullTimestamps = async (chainId: number) => {
 };
 
 export {
+  getLatestSynchronizedBlock,
+  insertSlashEvent,
   selectChain,
+  selectNullTimestamps,
+  updateLatestSynchronizedBlock,
+  upsertBlock,
+  upsertBlocks,
   upsertChain,
   upsertChains,
-  getLatestSynchronizedBlock,
-  updateLatestSynchronizedBlock,
-  upsertBlocks,
-  upsertBlock,
-  insertSlashEvent,
-  upsertValidators,
   upsertValidator,
-  selectNullTimestamps,
+  upsertValidators,
 };

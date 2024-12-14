@@ -1,4 +1,5 @@
 import typescriptEslint from "@typescript-eslint/eslint-plugin";
+import simpleImportSort from "eslint-plugin-simple-import-sort";
 import globals from "globals";
 import tsParser from "@typescript-eslint/parser";
 import path from "node:path";
@@ -23,6 +24,12 @@ export default [
   {
     plugins: {
       "@typescript-eslint": typescriptEslint,
+      "simple-import-sort": simpleImportSort,
+    },
+    rules: {
+      // Sorting imports and exports
+      "simple-import-sort/imports": "error",
+      "simple-import-sort/exports": "error",
     },
   },
 ];

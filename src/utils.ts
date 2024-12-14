@@ -1,6 +1,6 @@
-import assert from "assert";
 import { sha256 } from "@cosmjs/crypto";
-import { fromBase64, toBech32, fromBech32 } from "@cosmjs/encoding";
+import { fromBase64, fromBech32, toBech32 } from "@cosmjs/encoding";
+import assert from "assert";
 
 /**
  * Handles HTTP error response, raises an exception on non OK status.
@@ -58,10 +58,10 @@ const getEnvVariable = (varName: string): string => {
 };
 
 export {
-  handleHttpError,
-  retry,
-  pubKeyToSha256,
-  pubKeyToBench32,
-  operatorAddressToAccount,
   getEnvVariable,
+  handleHttpError,
+  operatorAddressToAccount,
+  pubKeyToBench32,
+  pubKeyToSha256,
+  retry,
 };

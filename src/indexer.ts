@@ -1,42 +1,43 @@
-import assert from "assert";
-import * as dotenv from "dotenv";
-import _ from "lodash";
-import { chains } from "chain-registry";
 import { Chain } from "@chain-registry/types";
 import {
-  TendermintClient,
-  Tendermint34Client,
-  Tendermint37Client,
   Attribute as BlockEventAttribute34,
   BlockResultsResponse as BlockResultsResponse34,
   Event as BlockEvent34,
+  Tendermint34Client,
+  Tendermint37Client,
+  TendermintClient,
 } from "@cosmjs/tendermint-rpc";
 import {
-  EventAttribute as BlockEventAttribute37,
   BlockResultsResponse as BlockResultsResponse37,
   Event as BlockEvent37,
+  EventAttribute as BlockEventAttribute37,
 } from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
+import assert from "assert";
+import { chains } from "chain-registry";
+import * as dotenv from "dotenv";
+import _ from "lodash";
+
 import supportedChains from "./chains";
-import { SlashEvent, CosmosValidator } from "./types";
+import {
+  getLatestSynchronizedBlock,
+  insertSlashEvent,
+  selectChain,
+  selectNullTimestamps,
+  updateLatestSynchronizedBlock,
+  upsertBlock,
+  upsertBlocks,
+  upsertChains,
+  upsertValidator,
+  upsertValidators,
+} from "./database";
+import { CosmosValidator, SlashEvent } from "./types";
 import {
   getEnvVariable,
   handleHttpError,
-  retry,
-  pubKeyToBench32,
   operatorAddressToAccount,
+  pubKeyToBench32,
+  retry,
 } from "./utils";
-import {
-  selectChain,
-  upsertChains,
-  getLatestSynchronizedBlock,
-  updateLatestSynchronizedBlock,
-  upsertBlocks,
-  upsertBlock,
-  insertSlashEvent,
-  upsertValidators,
-  upsertValidator,
-  selectNullTimestamps,
-} from "./database";
 
 dotenv.config();
 

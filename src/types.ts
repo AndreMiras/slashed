@@ -43,9 +43,9 @@ interface CosmosValidator {
 }
 
 export type {
-  SlashEvent,
-  CosmosValidatorDescription,
-  CosmosValidatorCommissionRate,
-  CosmosValidatorCommission,
   CosmosValidator,
+  CosmosValidatorCommission,
+  CosmosValidatorCommissionRate,
+  CosmosValidatorDescription,
+  SlashEvent,
 };
