@@ -26,6 +26,12 @@ const handlePostgrestError = (error: PostgrestError | null) => {
   throw new Error(error.message);
 };
 
+/**
+ * Checks if an error is a "no rows returned" error from Supabase.
+ */
+const isNoRowsError = (error: PostgrestError | null): boolean =>
+  error?.code === "PGRST116" && error?.details === "The result contains 0 rows";
+
 const selectChain = async (name: string) => {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
@@ -68,12 +74,8 @@ const getLatestSynchronizedBlock = async (chainId: number): Promise<number> => {
     .select("*")
     .eq("chain_id", chainId)
     .single();
-  try {
-    handlePostgrestError(error);
-  } catch {
-    // most likely no record found (error code PGRST116)
-    return 1;
-  }
+  if (isNoRowsError(error)) return 1;
+  handlePostgrestError(error);
   return data!.block_height;
 };
 
