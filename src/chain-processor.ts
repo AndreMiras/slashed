@@ -9,7 +9,6 @@ import {
 import assert from "assert";
 import _ from "lodash";
 
-import { FETCH_BATCH_SIZE, PROCESS_CHAIN_BATCH_SIZE } from "./config";
 import {
   insertSlashEvent,
   selectNullTimestamps,
@@ -159,6 +158,7 @@ const processChainChunk = async (
   chainId: number,
   startHeight: number,
   endHeight: number,
+  fetchBatchSize: number,
 ) => {
   console.log("processChainChunk()");
   console.log({ startHeight, endHeight });
@@ -166,7 +166,7 @@ const processChainChunk = async (
     client,
     startHeight,
     endHeight,
-    FETCH_BATCH_SIZE,
+    fetchBatchSize,
   );
   logSlashEvents(slashEvents);
   logDecodeSlashEvents(slashEvents);
@@ -177,22 +177,30 @@ const processChainChunk = async (
 
 /**
  * Process chain blocks from startHeight to endHeight making sure we don't handle more than
- * PROCESS_CHAIN_BATCH_SIZE blocks at a time.
+ * processChainBatchSize blocks at a time.
  * This way we know we came full circle from downloading blocks, filtering and saving to DB
- * every PROCESS_CHAIN_BATCH_SIZE blocks at most.
+ * every processChainBatchSize blocks at most.
  */
 const processChain = async (
   client: TendermintClient,
   chainId: number,
   startHeight: number,
   endHeight: number,
+  processChainBatchSize: number,
+  fetchBatchSize: number,
 ) => {
   let currentStart = startHeight;
-  let currentEnd = Math.min(startHeight + PROCESS_CHAIN_BATCH_SIZE, endHeight);
+  let currentEnd = Math.min(startHeight + processChainBatchSize, endHeight);
   while (currentStart <= endHeight) {
-    await processChainChunk(client, chainId, currentStart, currentEnd);
+    await processChainChunk(
+      client,
+      chainId,
+      currentStart,
+      currentEnd,
+      fetchBatchSize,
+    );
     currentStart = currentEnd + 1;
-    currentEnd = Math.min(currentStart + PROCESS_CHAIN_BATCH_SIZE, endHeight);
+    currentEnd = Math.min(currentStart + processChainBatchSize, endHeight);
   }
 };
 

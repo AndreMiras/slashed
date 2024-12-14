@@ -7,7 +7,12 @@ import _ from "lodash";
 import { processChain } from "./chain-processor";
 import supportedChains from "./chains";
 import { getTendermintClient } from "./clients";
-import { CHAIN_NAME, TENDERMINT_RPC_URL } from "./config";
+import {
+  CHAIN_NAME,
+  FETCH_BATCH_SIZE,
+  PROCESS_CHAIN_BATCH_SIZE,
+  TENDERMINT_RPC_URL,
+} from "./config";
 import {
   getLatestSynchronizedBlock,
   selectChain,
@@ -166,9 +171,18 @@ const main = async () => {
   const client = await getTendermintClient(TENDERMINT_RPC_URL);
   const startHeight = await getStartHeight(chainId);
   const endHeight = await getEndHeight(client);
+  const processChainBatchSize = PROCESS_CHAIN_BATCH_SIZE;
+  const fetchBatchSize = FETCH_BATCH_SIZE;
   console.log("main()");
   console.log({ chainName, startHeight, endHeight });
-  await processChain(client, chainId, startHeight, endHeight);
+  await processChain(
+    client,
+    chainId,
+    startHeight,
+    endHeight,
+    processChainBatchSize,
+    fetchBatchSize,
+  );
   client.disconnect();
 };
 
