@@ -1,11 +1,35 @@
 /**
  * Functions to process, decode, and filter block events (e.g., slashing events).
  */
+import { BlockResultsResponse as BlockResultsResponse34 } from "@cosmjs/tendermint-rpc";
+import { BlockResultsResponse as BlockResultsResponse37 } from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
 import assert from "assert";
 import _ from "lodash";
 import { TextDecoder } from "util";
 
-import { BlockEvent, BlockEventAttribute, SlashEvent } from "./types";
+import {
+  BlockEvent,
+  BlockEventAttribute,
+  BlockResultsResponse,
+  SlashEvent,
+} from "./types";
+
+const isBlockResultsResponse34 = (
+  obj: BlockResultsResponse,
+): obj is BlockResultsResponse34 => {
+  const attributeKey = obj.beginBlockEvents[0]?.attributes[0]?.key;
+  // if obj.beginBlockEvents has no events then we are OK with it being any type since we can't
+  // go through it anyway
+  return (
+    obj?.beginBlockEvents !== undefined &&
+    (attributeKey === undefined || attributeKey instanceof Uint8Array)
+  );
+};
+
+const isBlockResultsResponse37 = (
+  obj: BlockResultsResponse,
+): obj is BlockResultsResponse37 =>
+  typeof obj.beginBlockEvents[0]?.attributes[0]?.key === "string";
 
 const decodeAttribute = (
   decoder: TextDecoder,
@@ -65,4 +89,6 @@ export {
   decodeBlockEvent2Object,
   decodeSlashEvent,
   decodeSlashEvents,
+  isBlockResultsResponse34,
+  isBlockResultsResponse37,
 };
