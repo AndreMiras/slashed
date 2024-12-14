@@ -77,14 +77,11 @@ const isRestUrlHealthy = async (restUrl: string): Promise<boolean> => {
  * Filters and returns only the healthy REST URLs from the given list.
  */
 const getHealthyRestUrls = async (restUrls: string[]): Promise<string[]> => {
-  const healthyRestUrls: string[] = [];
-  for (const restUrl of restUrls) {
-    const isHealthy = await isRestUrlHealthy(restUrl);
-    if (isHealthy) {
-      healthyRestUrls.push(restUrl);
-    }
-  }
-  return healthyRestUrls;
+  const healthChecks = restUrls.map(async (url) =>
+    (await isRestUrlHealthy(url)) ? url : null,
+  );
+  const results = await Promise.all(healthChecks);
+  return results.filter((url): url is string => url !== null);
 };
 
 /**
