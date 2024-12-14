@@ -10,11 +10,16 @@ import {
 } from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
 import assert from "assert";
 import { chains } from "chain-registry";
-import * as dotenv from "dotenv";
 import _ from "lodash";
 
 import supportedChains from "./chains";
 import { getTendermintClient } from "./clients";
+import {
+  CHAIN_NAME,
+  FETCH_BATCH_SIZE,
+  PROCESS_CHAIN_BATCH_SIZE,
+  TENDERMINT_RPC_URL,
+} from "./config";
 import {
   getLatestSynchronizedBlock,
   insertSlashEvent,
@@ -39,23 +44,11 @@ import {
   SlashEvent,
 } from "./types";
 import {
-  getEnvVariable,
   handleHttpError,
   operatorAddressToAccount,
   pubKeyToBench32,
   retry,
 } from "./utils";
-
-dotenv.config();
-
-const CHAIN_NAME = getEnvVariable("CHAIN_NAME");
-const TENDERMINT_RPC_URL = getEnvVariable("TENDERMINT_RPC_URL");
-const FETCH_BATCH_SIZE = Number(process.env.FETCH_BATCH_SIZE ?? 100);
-assert.ok(!isNaN(FETCH_BATCH_SIZE));
-const PROCESS_CHAIN_BATCH_SIZE = Number(
-  process.env.PROCESS_CHAIN_BATCH_SIZE ?? 100,
-);
-assert.ok(!isNaN(PROCESS_CHAIN_BATCH_SIZE));
 
 const logBlockEvent = (blockEvent: BlockEvent) => {
   const attributes = decodeBlockEvent2Array(blockEvent);
