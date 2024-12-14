@@ -156,7 +156,7 @@ const syncAddressBook = async (chainId: number, chainName: string) => {
       moniker: description.moniker,
       account: operatorAddressToAccount(operator_address),
       valoper: operator_address,
-      valcons: validatorValcons(prefix, consensus_pubkey.key),
+      valcons: validatorValcons(prefix ?? "", consensus_pubkey.key),
       consensusPubkey: consensus_pubkey.key,
     }),
   );
