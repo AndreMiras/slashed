@@ -9,7 +9,7 @@ const handleHttpError = async (response: Response, consoleError = true) => {
   if (!response.ok) {
     const bodyText = await response.text();
     const errorMessage = `${response.status} ${response.statusText} (${response.url}): ${bodyText}`;
-    consoleError && console.error(errorMessage);
+    if (consoleError) console.error(errorMessage);
     throw new Error(errorMessage);
   }
 };
