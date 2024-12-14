@@ -19,6 +19,9 @@
     "supabase:gen:types": "supabase --workdir src gen types typescript --local > src/supabase/database.types.ts",
     "build": "tsc"
   },
+  "engines": {
+    "node": "22.x"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -32,6 +35,7 @@
     "@eslint/js": "^9.17.0",
     "@types/lodash": "^4.14.195",
     "@types/mocha": "^10.0.6",
+    "@types/node": "^22.10.2",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "eslint": "^9.17.0",
