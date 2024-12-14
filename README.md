@@ -131,6 +131,7 @@ For example, the signing info query provides the most recent slashing informatio
 This data is accessible through various methods:
 
 - Using the REST API: <http://localhost:1317/cosmos/slashing/v1beta1/signing_infos>
+- Using RPC: <http://localhost:26657/abci_query?path=%22/cosmos.slashing.v1beta1.Query/SigningInfos%22>
 - Using gRPC: grpcurl -plaintext localhost:9090 cosmos.slashing.v1beta1.Query/SigningInfos
 - Using the CLI: cantod query slashing signing-infos
 

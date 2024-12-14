@@ -354,12 +354,48 @@ const chainAlias = (chainName: string): string =>
 const getChainInfo = (chainName: string): Chain | undefined =>
   chains.find(({ chain_name }) => chain_name === chainName);
 
-const getChainRestUrl = (chainName: string): string => {
+/**
+ * Checks if the given REST URL is healthy by hitting the node_info endpoint.
+ */
+const isRestUrlHealthy = async (restUrl: string): Promise<boolean> => {
+  try {
+    const response = await fetch(
+      `${restUrl}/cosmos/base/tendermint/v1beta1/node_info`,
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Filters and returns only the healthy REST URLs from the given list.
+ */
+const getHealthyRestUrls = async (restUrls: string[]): Promise<string[]> => {
+  const healthyRestUrls: string[] = [];
+  for (const restUrl of restUrls) {
+    const isHealthy = await isRestUrlHealthy(restUrl);
+    if (isHealthy) {
+      healthyRestUrls.push(restUrl);
+    }
+  }
+  return healthyRestUrls;
+};
+
+/**
+ * Returns a healthy REST URL for the given chain or fails if none found.
+ */
+const getChainRestUrl = async (chainName: string): Promise<string> => {
   const chainInfo = getChainInfo(chainAlias(chainName));
   const restList = chainInfo?.apis?.rest || [];
-  assert.ok(restList.length > 0, `No REST for this chain (${chainName})`);
-  const rest = _.sample(restList);
-  return rest!.address;
+  const restUrls = restList.map(({ address }) => address);
+  const healthyRestUrls = await getHealthyRestUrls(restUrls);
+  assert.ok(
+    healthyRestUrls.length > 0,
+    `No healthy REST for this chain (${chainName})`,
+  );
+  const restUrl = _.sample(healthyRestUrls);
+  return restUrl!;
 };
 
 /**
@@ -407,10 +443,8 @@ const syncAddressBook = async (chainId: number, chainName: string) => {
   assert.ok(chainInfo, `Chain not found in the registry (${chainName})`);
   const prefix = chainInfo!.bech32_prefix;
   const retryCount = 5;
-  const validators = await retry(
-    () => fetchAllValidators(getChainRestUrl(chainName)),
-    retryCount,
-  );
+  const restUrl = await getChainRestUrl(chainName);
+  const validators = await retry(() => fetchAllValidators(restUrl), retryCount);
   const validatorsRows = validators.map(
     ({ operator_address, consensus_pubkey, description }) => ({
       chainId,
