@@ -51,6 +51,7 @@
     "typescript": "^5.1.6"
   },
   "dependencies": {
+    "@cosmjs/proto-signing": "^0.32.4",
     "@cosmjs/tendermint-rpc": "^0.32.4",
     "@supabase/supabase-js": "^2.47.7",
     "chain-registry": "^1.69.62",

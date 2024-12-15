@@ -2,6 +2,12 @@ import { Chain } from "@chain-registry/types";
 import { TendermintClient } from "@cosmjs/tendermint-rpc";
 import assert from "assert";
 import { chains } from "chain-registry";
+import { PageRequest } from "cosmjs-types/cosmos/base/query/v1beta1/pagination";
+import {
+  QuerySigningInfosRequest,
+  QuerySigningInfosResponse,
+} from "cosmjs-types/cosmos/slashing/v1beta1/query";
+import { ValidatorSigningInfo } from "cosmjs-types/cosmos/slashing/v1beta1/slashing";
 import _ from "lodash";
 
 import { processChain } from "./chain-processor";
@@ -160,6 +166,66 @@ const syncAddressBook = async (chainId: number, chainName: string) => {
   await upsertValidators(validatorsRows);
 };
 
+/**
+ * Fetches signing information for validators using ABCI SigningInfos Tendermint RPC query.
+ *
+ * @param {TendermintClient} client - The Tendermint client for the blockchain.
+ * @param {number} height - The block height to query (default: latest).
+ * @param {number} paginationOffset - The offset for pagination (default: 0).
+ * @returns {Promise<QuerySigningInfosResponse>} A promise resolving to the signing information response.
+ */
+const querySigningInfos = async (
+  client: TendermintClient,
+  height = 0,
+  paginationOffset: number = 0,
+): Promise<QuerySigningInfosResponse> => {
+  const path = "/cosmos.slashing.v1beta1.Query/SigningInfos";
+  const paginationRequest = PageRequest.fromPartial({
+    offset: BigInt(paginationOffset),
+  });
+  const signingInfoRequest = QuerySigningInfosRequest.fromPartial({
+    pagination: paginationRequest,
+  });
+  const requestData =
+    QuerySigningInfosRequest.encode(signingInfoRequest).finish();
+  const prove = false;
+  const signingInfos = await client.abciQuery({
+    path,
+    data: requestData,
+    prove,
+    height,
+  });
+  const decodedSigningInfos = QuerySigningInfosResponse.decode(
+    signingInfos.value,
+  );
+  return decodedSigningInfos;
+};
+
+/**
+ * Fetches all validator signing information by paginating through results.
+ *
+ * @param {TendermintClient} client - The Tendermint client for the blockchain.
+ * @param {number} height - The block height to query (default: latest).
+ * @returns {Promise<ValidatorSigningInfo[]>} A promise resolving to an array of all validator signing information.
+ */
+const queryAllSigningInfos = async (
+  client: TendermintClient,
+  height: number = 0,
+): Promise<ValidatorSigningInfo[]> => {
+  let allSigningInfos: ValidatorSigningInfo[] = [];
+  let signingInfos: ValidatorSigningInfo[] = [];
+  do {
+    const signingInfosResponse = await querySigningInfos(
+      client,
+      height,
+      allSigningInfos.length,
+    );
+    signingInfos = signingInfosResponse.info;
+    allSigningInfos = [...allSigningInfos, ...signingInfos];
+  } while (signingInfos.length > 0);
+  return allSigningInfos;
+};
+
 const main = async () => {
   const chainName = CHAIN_NAME;
   await upsertChains(supportedChains);
@@ -183,7 +249,11 @@ const main = async () => {
   client.disconnect();
 };
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
+
+export { main, queryAllSigningInfos };
