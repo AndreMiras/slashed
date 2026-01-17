@@ -124,24 +124,53 @@ Output:
 }
 ```
 
-We are currently querying each block sequentially to identify slashing events.
-However, there are heuristics that can accelerate this process.
-For example, the signing info query provides the most recent slashing information for each validator, allowing you to target specific blocks more effectively.
+## Detection Modes
 
-This data is accessible through various methods:
+The indexer supports two slash detection modes:
+
+### Heuristic Mode (Default - O(log n))
+
+Uses the SigningInfos query to detect jail events efficiently:
+
+1. **Find signing info availability** - Binary search to find earliest height with signing info data
+2. **Detect jail events** - Compare signing infos at start/end heights to identify jailed validators
+3. **Binary search exact blocks** - For each jailed validator, binary search to find the exact jail block
+4. **Verify blocks** - Fetch actual block results to confirm slash events
+
+This is O(log n) per slash event instead of O(n) for sequential scanning.
+
+**Usage**: This mode is enabled by default. Run normally:
+
+```sh
+CHAIN_NAME=kujira \
+TENDERMINT_RPC_URL=https://archive.kujira.network \
+npm run dev
+```
+
+### Sequential Mode (O(n))
+
+Traditional block-by-block scanning that queries every block in the range.
+
+**Usage**: Set `USE_HEURISTIC=false`:
+
+```sh
+USE_HEURISTIC=false \
+CHAIN_NAME=kujira \
+TENDERMINT_RPC_URL=https://archive.kujira.network \
+npm run dev
+```
+
+### Signing Info Technical Details
+
+The heuristic uses the signing info query which provides the most recent slashing information for each validator:
 
 - Using the REST API: <http://localhost:1317/cosmos/slashing/v1beta1/signing_infos>
 - Using RPC: <http://localhost:26657/abci_query?path=%22/cosmos.slashing.v1beta1.Query/SigningInfos%22>
 - Using gRPC: grpcurl -plaintext localhost:9090 cosmos.slashing.v1beta1.Query/SigningInfos
 - Using the CLI: cantod query slashing signing-infos
 
-When using the CLI, you can supply the `--height` flag to search prior to the last recorded slashing event for each validator, allowing to backtrack efficiently. Unfortunately the height doesn't seem to be configurable using the REST API or gRPC.
+When using the CLI, you can supply the `--height` flag to query at specific heights.
+The indexer uses the RPC ABCI query with height parameter to enable the binary search algorithm.
 
 For more details, refer to the documentation:
 [Cosmos SDK Slashing Module](https://docs.cosmos.network/main/build/modules/slashing).
-
-This heuristic is not currently implemented, and there may be other strategies that could further optimize the process.
-If you know of any, we encourage you to share them.
-
-Note: We are actively looking for a more efficient method to directly query all slashing events across all blocks.
-If you have insights or suggestions, please feel free to contribute.

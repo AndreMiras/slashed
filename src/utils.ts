@@ -60,7 +60,35 @@ const getEnvVariable = (varName: string): string => {
   return value;
 };
 
+/**
+ * Format milliseconds into a human-readable duration string.
+ */
+const formatDuration = (ms: number): string => {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  const minutes = Math.floor(ms / 60000);
+  const seconds = Math.floor((ms % 60000) / 1000);
+  return `${minutes}m ${seconds}s`;
+};
+
+/**
+ * Calculate and format ETA based on elapsed time and progress.
+ */
+const formatEta = (
+  elapsedMs: number,
+  completed: number,
+  total: number,
+): string => {
+  if (completed === 0) return "calculating...";
+  const msPerItem = elapsedMs / completed;
+  const remaining = total - completed;
+  const etaMs = msPerItem * remaining;
+  return formatDuration(etaMs);
+};
+
 export {
+  formatDuration,
+  formatEta,
   getEnvVariable,
   handleHttpError,
   operatorAddressToAccount,

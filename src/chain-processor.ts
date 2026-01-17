@@ -205,4 +205,4 @@ const processChain = async (
   }
 };
 
-export { processChain, processMissingTimestamps };
+export { insertSlashEvents, processChain, processMissingTimestamps };

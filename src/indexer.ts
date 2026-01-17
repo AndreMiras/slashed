@@ -2,15 +2,14 @@ import { Chain } from "@chain-registry/types";
 import { CometClient } from "@cosmjs/tendermint-rpc";
 import assert from "assert";
 import { chains } from "chain-registry";
-import { PageRequest } from "cosmjs-types/cosmos/base/query/v1beta1/pagination";
-import {
-  QuerySigningInfosRequest,
-  QuerySigningInfosResponse,
-} from "cosmjs-types/cosmos/slashing/v1beta1/query";
-import { ValidatorSigningInfo } from "cosmjs-types/cosmos/slashing/v1beta1/slashing";
 import _ from "lodash";
 
-import { processChain } from "./chain-processor";
+import {
+  insertSlashEvents,
+  processBlockRange,
+  processChain,
+  processMissingTimestamps,
+} from "./chain-processor";
 import supportedChains from "./chains";
 import { getTendermintClient } from "./clients";
 import {
@@ -22,11 +21,19 @@ import {
 import {
   getLatestSynchronizedBlock,
   selectChain,
+  updateLatestSynchronizedBlock,
   upsertChains,
   upsertValidators,
 } from "./database";
-import { CosmosValidator } from "./types";
+import { logDecodeSlashEvents, logSlashEvents } from "./logging";
 import {
+  findSlashEventsViaSigningInfo,
+  queryAllSigningInfos,
+} from "./signing-info-heuristic";
+import { BlockEvent, CosmosValidator } from "./types";
+import {
+  formatDuration,
+  formatEta,
   handleHttpError,
   operatorAddressToAccount,
   pubKeyToBench32,
@@ -167,63 +174,156 @@ const syncAddressBook = async (chainId: number, chainName: string) => {
 };
 
 /**
- * Fetches signing information for validators using ABCI SigningInfos Tendermint RPC query.
- *
- * @param {CometClient} client - The Tendermint/CometBFT client for the blockchain.
- * @param {number} height - The block height to query (default: latest).
- * @param {number} paginationOffset - The offset for pagination (default: 0).
- * @returns {Promise<QuerySigningInfosResponse>} A promise resolving to the signing information response.
+ * Store and log a single batch of slash events immediately.
  */
-const querySigningInfos = async (
+const storeVerifiedEvents = async (
   client: CometClient,
-  height = 0,
-  paginationOffset: number = 0,
-): Promise<QuerySigningInfosResponse> => {
-  const path = "/cosmos.slashing.v1beta1.Query/SigningInfos";
-  const paginationRequest = PageRequest.fromPartial({
-    offset: BigInt(paginationOffset),
-  });
-  const signingInfoRequest = QuerySigningInfosRequest.fromPartial({
-    pagination: paginationRequest,
-  });
-  const requestData =
-    QuerySigningInfosRequest.encode(signingInfoRequest).finish();
-  const prove = false;
-  const signingInfos = await client.abciQuery({
-    path,
-    data: requestData,
-    prove,
-    height,
-  });
-  const decodedSigningInfos = QuerySigningInfosResponse.decode(
-    signingInfos.value,
-  );
-  return decodedSigningInfos;
+  chainId: number,
+  slashEvents: Record<number, BlockEvent[]>,
+): Promise<void> => {
+  if (Object.keys(slashEvents).length === 0) return;
+
+  logSlashEvents(slashEvents);
+  logDecodeSlashEvents(slashEvents);
+  await insertSlashEvents(chainId, slashEvents);
+  await processMissingTimestamps(client, chainId);
 };
 
 /**
- * Fetches all validator signing information by paginating through results.
- *
- * @param {CometClient} client - The Tendermint/CometBFT client for the blockchain.
- * @param {number} height - The block height to query (default: latest).
- * @returns {Promise<ValidatorSigningInfo[]>} A promise resolving to an array of all validator signing information.
+ * Use signing info heuristic to find slash events, then verify and store them.
+ * Events are stored incrementally as they're verified for resilience.
+ * This is O(log n) per slash event instead of O(n) for sequential scanning.
  */
-const queryAllSigningInfos = async (
+const processChainWithHeuristic = async (
   client: CometClient,
-  height: number = 0,
-): Promise<ValidatorSigningInfo[]> => {
-  let allSigningInfos: ValidatorSigningInfo[] = [];
-  let signingInfos: ValidatorSigningInfo[] = [];
-  do {
-    const signingInfosResponse = await querySigningInfos(
-      client,
-      height,
-      allSigningInfos.length,
+  chainId: number,
+  startHeight: number,
+  endHeight: number,
+): Promise<number> => {
+  // Step 1: Find slash events using signing info heuristic
+  const detectedEvents = await findSlashEventsViaSigningInfo(
+    client,
+    startHeight,
+    endHeight,
+  );
+
+  if (detectedEvents.length === 0) {
+    // No events found, but still update sync status to mark range as processed
+    console.log(`[Heuristic] Updating sync status to height ${endHeight}...`);
+    await updateLatestSynchronizedBlock(chainId, endHeight);
+    return 0;
+  }
+
+  // Step 2: Get the unique blocks that need verification, sorted by height
+  const slashBlocks = detectedEvents
+    .filter((e) => e.estimatedJailBlock !== null)
+    .map((e) => e.estimatedJailBlock as number)
+    .sort((a, b) => a - b);
+
+  console.log(`\n${"=".repeat(60)}`);
+  console.log(`[Verification] Starting block verification phase`);
+  console.log(
+    `[Verification] ${slashBlocks.length} potential slash blocks to verify`,
+  );
+  console.log(
+    `[Verification] Storing events incrementally as they're verified`,
+  );
+  console.log(`${"=".repeat(60)}\n`);
+
+  // Step 3: Verify each detected slash and store immediately
+  const verifyStartTime = Date.now();
+  let confirmedCount = 0;
+  let storedCount = 0;
+  const total = slashBlocks.length;
+  let highestVerifiedBlock = startHeight;
+
+  for (let i = 0; i < slashBlocks.length; i++) {
+    const slashBlock = slashBlocks[i];
+    const elapsed = Date.now() - verifyStartTime;
+    const progress = Math.round(((i + 1) / total) * 100);
+    const eta = i > 0 ? formatEta(elapsed, i, total) : "calculating...";
+
+    console.log(
+      `[Verification] Verifying block ${
+        i + 1
+      }/${total} (${progress}%) - ETA: ${eta}`,
     );
-    signingInfos = signingInfosResponse.info;
-    allSigningInfos = [...allSigningInfos, ...signingInfos];
-  } while (signingInfos.length > 0);
-  return allSigningInfos;
+    console.log(
+      `[Verification]   Block height: ${slashBlock.toLocaleString()}`,
+    );
+
+    // Fetch block results to confirm slash event
+    let confirmedEvents: Record<number, BlockEvent[]> = {};
+    const slashEvents = await processBlockRange(client, slashBlock, slashBlock);
+
+    if (Object.keys(slashEvents).length > 0) {
+      console.log(
+        `[Verification]   ✓ Confirmed slash event at block ${slashBlock.toLocaleString()}`,
+      );
+      confirmedCount++;
+      confirmedEvents = slashEvents;
+    } else {
+      console.log(
+        `[Verification]   Block ${slashBlock.toLocaleString()} empty, checking adjacent blocks...`,
+      );
+      // Try adjacent blocks in case binary search is slightly off
+      const adjacentEvents = await processBlockRange(
+        client,
+        slashBlock - 2,
+        slashBlock + 2,
+      );
+      if (Object.keys(adjacentEvents).length > 0) {
+        const foundBlocks = Object.keys(adjacentEvents).join(", ");
+        console.log(
+          `[Verification]   ✓ Found slash event in adjacent blocks: ${foundBlocks}`,
+        );
+        confirmedCount++;
+        confirmedEvents = adjacentEvents;
+      } else {
+        console.log(
+          `[Verification]   ✗ No slash event found in range ${slashBlock - 2}-${
+            slashBlock + 2
+          }`,
+        );
+      }
+    }
+
+    // Store confirmed events immediately
+    if (Object.keys(confirmedEvents).length > 0) {
+      await storeVerifiedEvents(client, chainId, confirmedEvents);
+      storedCount += Object.keys(confirmedEvents).length;
+      console.log(
+        `[Verification]   📦 Stored to DB (total: ${storedCount} blocks with events)`,
+      );
+    }
+
+    // Track highest verified block for progress
+    highestVerifiedBlock = Math.max(highestVerifiedBlock, slashBlock + 2);
+
+    // Update sync status periodically (every 10 verifications or at the end)
+    if ((i + 1) % 10 === 0 || i === slashBlocks.length - 1) {
+      await updateLatestSynchronizedBlock(chainId, highestVerifiedBlock);
+      console.log(
+        `[Verification]   💾 Progress saved (synced to block ${highestVerifiedBlock.toLocaleString()})`,
+      );
+    }
+  }
+
+  const totalTime = Date.now() - verifyStartTime;
+  console.log(`\n${"=".repeat(60)}`);
+  console.log(
+    `[Verification] Complete: ${confirmedCount}/${total} slash events confirmed`,
+  );
+  console.log(`[Verification] Stored ${storedCount} blocks with slash events`);
+  console.log(`[Verification] Verification time: ${formatDuration(totalTime)}`);
+  console.log(`${"=".repeat(60)}\n`);
+
+  // Final sync status update to endHeight
+  console.log(`[Database] Updating sync status to height ${endHeight}...`);
+  await updateLatestSynchronizedBlock(chainId, endHeight);
+  console.log(`[Database] Sync status updated`);
+
+  return confirmedCount;
 };
 
 const main = async () => {
@@ -232,20 +332,33 @@ const main = async () => {
   const { id: chainId } = await selectChain(chainName);
   await syncAddressBook(chainId, chainName);
   const client = await getTendermintClient(TENDERMINT_RPC_URL);
+
   const startHeight = await getStartHeight(chainId);
   const endHeight = await getEndHeight(client);
   const processChainBatchSize = PROCESS_CHAIN_BATCH_SIZE;
   const fetchBatchSize = FETCH_BATCH_SIZE;
+
+  // Check if USE_HEURISTIC env var is set
+  const useHeuristic = process.env.USE_HEURISTIC !== "false";
+
   console.log("main()");
-  console.log({ chainName, startHeight, endHeight });
-  await processChain(
-    client,
-    chainId,
-    startHeight,
-    endHeight,
-    processChainBatchSize,
-    fetchBatchSize,
-  );
+  console.log({ chainName, startHeight, endHeight, useHeuristic });
+
+  if (useHeuristic) {
+    // Use heuristic approach: O(log n) signing info-based detection
+    await processChainWithHeuristic(client, chainId, startHeight, endHeight);
+  } else {
+    // Use traditional sequential scan: O(n) block-by-block
+    await processChain(
+      client,
+      chainId,
+      startHeight,
+      endHeight,
+      processChainBatchSize,
+      fetchBatchSize,
+    );
+  }
+
   client.disconnect();
 };
 
@@ -256,4 +369,4 @@ if (require.main === module) {
   });
 }
 
-export { main, queryAllSigningInfos };
+export { main, processChainWithHeuristic, queryAllSigningInfos };
