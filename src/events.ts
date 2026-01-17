@@ -1,57 +1,53 @@
 /**
  * Functions to process, decode, and filter block events (e.g., slashing events).
  */
-import { BlockResultsResponse as BlockResultsResponse34 } from "@cosmjs/tendermint-rpc";
-import { BlockResultsResponse as BlockResultsResponse37 } from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
 import assert from "assert";
 import _ from "lodash";
-import { TextDecoder } from "util";
 
 import {
   BlockEvent,
   BlockEventAttribute,
   BlockResultsResponse,
+  BlockResultsResponse37,
+  BlockResultsResponse38,
   SlashEvent,
 } from "./types";
 
-const isBlockResultsResponse34 = (
+/**
+ * Type guard for CometBFT 0.38+ and 1.x responses.
+ * These have finalizeBlockEvents instead of beginBlockEvents/endBlockEvents.
+ */
+const isBlockResultsResponse38 = (
   obj: BlockResultsResponse,
-): obj is BlockResultsResponse34 => {
-  const attributeKey = obj.beginBlockEvents[0]?.attributes[0]?.key;
-  // if obj.beginBlockEvents has no events then we are OK with it being any type since we can't
-  // go through it anyway
-  return (
-    obj?.beginBlockEvents !== undefined &&
-    (attributeKey === undefined || attributeKey instanceof Uint8Array)
-  );
+): obj is BlockResultsResponse38 => {
+  return "finalizeBlockEvents" in obj;
 };
 
+/**
+ * Type guard for Tendermint 0.37 responses.
+ * These have beginBlockEvents/endBlockEvents with string attribute keys.
+ */
 const isBlockResultsResponse37 = (
   obj: BlockResultsResponse,
-): obj is BlockResultsResponse37 =>
-  typeof obj.beginBlockEvents[0]?.attributes[0]?.key === "string";
+): obj is BlockResultsResponse37 => {
+  return "beginBlockEvents" in obj;
+};
 
-const decodeAttribute = (
-  decoder: TextDecoder,
-  attribute: BlockEventAttribute,
-) => {
-  const key =
-    attribute.key instanceof Uint8Array
-      ? decoder.decode(attribute.key)
-      : attribute.key;
-  const value =
-    attribute.value instanceof Uint8Array
-      ? decoder.decode(attribute.value)
-      : attribute.value;
-  return { key, value };
+/**
+ * Decode an event attribute to key/value strings.
+ * Modern cosmjs versions (0.34+) already return string attributes.
+ */
+const decodeAttribute = (attribute: BlockEventAttribute) => {
+  return { key: attribute.key, value: attribute.value };
 };
 
 const decodeBlockEvent2Array = (
   blockEvent: BlockEvent,
 ): Record<string, string>[] => {
   const { attributes } = blockEvent;
-  const decoder = new TextDecoder();
-  return attributes.map((attribute) => decodeAttribute(decoder, attribute));
+  return attributes.map((attribute) =>
+    decodeAttribute(attribute as BlockEventAttribute),
+  );
 };
 
 const decodeBlockEvent2Object = (
@@ -89,6 +85,6 @@ export {
   decodeBlockEvent2Object,
   decodeSlashEvent,
   decodeSlashEvents,
-  isBlockResultsResponse34,
   isBlockResultsResponse37,
+  isBlockResultsResponse38,
 };

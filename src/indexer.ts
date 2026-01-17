@@ -1,5 +1,5 @@
 import { Chain } from "@chain-registry/types";
-import { TendermintClient } from "@cosmjs/tendermint-rpc";
+import { CometClient } from "@cosmjs/tendermint-rpc";
 import assert from "assert";
 import { chains } from "chain-registry";
 import { PageRequest } from "cosmjs-types/cosmos/base/query/v1beta1/pagination";
@@ -46,7 +46,7 @@ const getStartHeight = async (chainId: number): Promise<number> => {
 /**
  * Returns END_HEIGHT environment variable or defaults to latest mined block.
  */
-const getEndHeight = async (client: TendermintClient) => {
+const getEndHeight = async (client: CometClient) => {
   const endHeight = Number(process.env.END_HEIGHT);
   if (!isNaN(endHeight)) return endHeight;
   console.log("No valid END_HEIGHT, using latest mined");
@@ -169,13 +169,13 @@ const syncAddressBook = async (chainId: number, chainName: string) => {
 /**
  * Fetches signing information for validators using ABCI SigningInfos Tendermint RPC query.
  *
- * @param {TendermintClient} client - The Tendermint client for the blockchain.
+ * @param {CometClient} client - The Tendermint/CometBFT client for the blockchain.
  * @param {number} height - The block height to query (default: latest).
  * @param {number} paginationOffset - The offset for pagination (default: 0).
  * @returns {Promise<QuerySigningInfosResponse>} A promise resolving to the signing information response.
  */
 const querySigningInfos = async (
-  client: TendermintClient,
+  client: CometClient,
   height = 0,
   paginationOffset: number = 0,
 ): Promise<QuerySigningInfosResponse> => {
@@ -204,12 +204,12 @@ const querySigningInfos = async (
 /**
  * Fetches all validator signing information by paginating through results.
  *
- * @param {TendermintClient} client - The Tendermint client for the blockchain.
+ * @param {CometClient} client - The Tendermint/CometBFT client for the blockchain.
  * @param {number} height - The block height to query (default: latest).
  * @returns {Promise<ValidatorSigningInfo[]>} A promise resolving to an array of all validator signing information.
  */
 const queryAllSigningInfos = async (
-  client: TendermintClient,
+  client: CometClient,
   height: number = 0,
 ): Promise<ValidatorSigningInfo[]> => {
   let allSigningInfos: ValidatorSigningInfo[] = [];

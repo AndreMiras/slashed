@@ -1,12 +1,4 @@
-import {
-  Event as BlockEvent34,
-  TendermintClient,
-} from "@cosmjs/tendermint-rpc";
-import {
-  BlockResultsResponse as BlockResultsResponse37,
-  Event as BlockEvent37,
-} from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
-import assert from "assert";
+import { CometClient } from "@cosmjs/tendermint-rpc";
 import _ from "lodash";
 
 import {
@@ -17,10 +9,18 @@ import {
   upsertBlocks,
   upsertValidator,
 } from "./database";
-import { isBlockResultsResponse34, isBlockResultsResponse37 } from "./events";
-import { beginBlockEventsFilter, decodeSlashEvents } from "./events";
+import {
+  beginBlockEventsFilter,
+  decodeSlashEvents,
+  isBlockResultsResponse38,
+} from "./events";
 import { logDecodeSlashEvents, logSlashEvents } from "./logging";
-import { BlockEvent, BlockResultsResponse } from "./types";
+import {
+  BlockEvent,
+  BlockResultsResponse,
+  BlockResultsResponse37,
+  BlockResultsResponse38,
+} from "./types";
 
 /**
  * Filter for slashing events only.
@@ -33,19 +33,20 @@ import { BlockEvent, BlockResultsResponse } from "./types";
 const getSlashEventsForBlockResults = (
   blockResults: BlockResultsResponse,
 ): BlockEvent[] => {
-  if (isBlockResultsResponse34(blockResults)) {
-    return (blockResults.beginBlockEvents as BlockEvent34[]).filter(
+  // CometBFT 0.38+ uses finalizeBlockEvents instead of beginBlockEvents
+  if (isBlockResultsResponse38(blockResults)) {
+    return (blockResults as BlockResultsResponse38).finalizeBlockEvents.filter(
       beginBlockEventsFilter,
     );
   }
-  assert.ok(isBlockResultsResponse37(blockResults));
-  return (
-    (blockResults as BlockResultsResponse37).beginBlockEvents as BlockEvent37[]
-  ).filter(beginBlockEventsFilter);
+  // Tendermint 0.37 uses beginBlockEvents
+  return (blockResults as BlockResultsResponse37).beginBlockEvents.filter(
+    beginBlockEventsFilter,
+  );
 };
 
 const getSlashEvents = async (
-  client: TendermintClient,
+  client: CometClient,
   heights: number[],
 ): Promise<Record<number, BlockEvent[]>> => {
   const promises = heights.map((height) => client.blockResults(height));
@@ -63,7 +64,7 @@ const getSlashEvents = async (
 };
 
 const processBlocks = (
-  client: TendermintClient,
+  client: CometClient,
   heights: number[],
 ): Promise<Record<number, BlockEvent[]>> => getSlashEvents(client, heights);
 
@@ -71,7 +72,7 @@ const processBlocks = (
  * Processes blocks from startHeight to endHeight (inclusive).
  */
 export const processBlockRange = async (
-  client: TendermintClient,
+  client: CometClient,
   startHeight: number,
   endHeight: number,
 ): Promise<Record<number, BlockEvent[]>> => {
@@ -83,7 +84,7 @@ export const processBlockRange = async (
  * Processes blocks from startHeight to endHeight (inclusive) by batchSize chunks.
  */
 const processBlockRangeChunks = async (
-  client: TendermintClient,
+  client: CometClient,
   startHeight: number,
   endHeight: number,
   batchSize: number,
@@ -129,7 +130,7 @@ const insertSlashEvents = (
 };
 
 const getBlockTimestamp = async (
-  client: TendermintClient,
+  client: CometClient,
   height: number,
 ): Promise<Date> => {
   const blockResponse = await client.block(height);
@@ -140,7 +141,7 @@ const getBlockTimestamp = async (
  * Add missing timestamps by fetching them using the RPC "block" call.
  */
 const processMissingTimestamps = async (
-  client: TendermintClient,
+  client: CometClient,
   chainId: number,
 ) => {
   const nullTimestampsRows = await selectNullTimestamps(chainId);
@@ -154,7 +155,7 @@ const processMissingTimestamps = async (
 };
 
 const processChainChunk = async (
-  client: TendermintClient,
+  client: CometClient,
   chainId: number,
   startHeight: number,
   endHeight: number,
@@ -182,7 +183,7 @@ const processChainChunk = async (
  * every processChainBatchSize blocks at most.
  */
 const processChain = async (
-  client: TendermintClient,
+  client: CometClient,
   chainId: number,
   startHeight: number,
   endHeight: number,
@@ -204,4 +205,4 @@ const processChain = async (
   }
 };
 
-export { processChain };
+export { processChain, processMissingTimestamps };

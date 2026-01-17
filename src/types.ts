@@ -1,17 +1,34 @@
-import {
-  Attribute as BlockEventAttribute34,
-  BlockResultsResponse as BlockResultsResponse34,
-  Event as BlockEvent34,
-} from "@cosmjs/tendermint-rpc";
-import {
-  BlockResultsResponse as BlockResultsResponse37,
-  Event as BlockEvent37,
-  EventAttribute as BlockEventAttribute37,
-} from "@cosmjs/tendermint-rpc/build/tendermint37/responses";
+import { comet1, comet38, tendermint37 } from "@cosmjs/tendermint-rpc";
 
-type BlockEvent = BlockEvent34 | BlockEvent37;
-type BlockEventAttribute = BlockEventAttribute34 | BlockEventAttribute37;
-type BlockResultsResponse = BlockResultsResponse34 | BlockResultsResponse37;
+// CometBFT 1.x types
+type BlockResultsResponse1 = comet1.BlockResultsResponse;
+type BlockEvent1 = comet1.Event;
+
+// CometBFT 0.38 types
+type BlockResultsResponse38 = comet38.BlockResultsResponse;
+type BlockEvent38 = comet38.Event;
+
+// Tendermint 0.37 types
+type BlockResultsResponse37 = tendermint37.BlockResultsResponse;
+type BlockEvent37 = tendermint37.Event;
+
+// Union types for compatibility across versions
+// All modern versions use string attributes, so we use a common Event type
+type BlockEvent = BlockEvent37 | BlockEvent38 | BlockEvent1;
+type BlockEventAttribute = { key: string; value: string };
+type BlockResultsResponse =
+  | BlockResultsResponse37
+  | BlockResultsResponse38
+  | BlockResultsResponse1;
+
+export type {
+  BlockEvent1,
+  BlockEvent37,
+  BlockEvent38,
+  BlockResultsResponse1,
+  BlockResultsResponse37,
+  BlockResultsResponse38,
+};
 
 interface SlashEvent {
   blockHeight: number;
