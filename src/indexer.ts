@@ -11,12 +11,11 @@ import {
   processMissingTimestamps,
 } from "./chain-processor";
 import supportedChains from "./chains";
-import { getTendermintClient } from "./clients";
 import {
   CHAIN_NAME,
   FETCH_BATCH_SIZE,
   PROCESS_CHAIN_BATCH_SIZE,
-  TENDERMINT_RPC_URL,
+  TENDERMINT_RPC_URLS,
 } from "./config";
 import {
   getLatestSynchronizedBlock,
@@ -38,6 +37,7 @@ import {
   operatorAddressToAccount,
   pubKeyToBench32,
   retry,
+  retryWithRotation,
 } from "./utils";
 
 /**
@@ -53,11 +53,14 @@ const getStartHeight = async (chainId: number): Promise<number> => {
 /**
  * Returns END_HEIGHT environment variable or defaults to latest mined block.
  */
-const getEndHeight = async (client: CometClient) => {
+const getEndHeight = async (rpcUrls: string[]): Promise<number> => {
   const endHeight = Number(process.env.END_HEIGHT);
   if (!isNaN(endHeight)) return endHeight;
   console.log("No valid END_HEIGHT, using latest mined");
-  const status = await client.status();
+  const status = await retryWithRotation(
+    (client: CometClient) => client.status(),
+    rpcUrls,
+  );
   return status.syncInfo.latestBlockHeight;
 };
 
@@ -177,16 +180,16 @@ const syncAddressBook = async (chainId: number, chainName: string) => {
  * Store and log a single batch of slash events immediately.
  */
 const storeVerifiedEvents = async (
-  client: CometClient,
   chainId: number,
   slashEvents: Record<number, BlockEvent[]>,
+  rpcUrls: string[],
 ): Promise<void> => {
   if (Object.keys(slashEvents).length === 0) return;
 
   logSlashEvents(slashEvents);
   logDecodeSlashEvents(slashEvents);
   await insertSlashEvents(chainId, slashEvents);
-  await processMissingTimestamps(client, chainId);
+  await processMissingTimestamps(chainId, rpcUrls);
 };
 
 /**
@@ -195,14 +198,14 @@ const storeVerifiedEvents = async (
  * This is O(log n) per slash event instead of O(n) for sequential scanning.
  */
 const processChainWithHeuristic = async (
-  client: CometClient,
   chainId: number,
   startHeight: number,
   endHeight: number,
+  rpcUrls: string[],
 ): Promise<number> => {
   // Step 1: Find slash events using signing info heuristic
   const detectedEvents = await findSlashEventsViaSigningInfo(
-    client,
+    rpcUrls,
     startHeight,
     endHeight,
   );
@@ -254,7 +257,11 @@ const processChainWithHeuristic = async (
 
     // Fetch block results to confirm slash event
     let confirmedEvents: Record<number, BlockEvent[]> = {};
-    const slashEvents = await processBlockRange(client, slashBlock, slashBlock);
+    const slashEvents = await processBlockRange(
+      slashBlock,
+      slashBlock,
+      rpcUrls,
+    );
 
     if (Object.keys(slashEvents).length > 0) {
       console.log(
@@ -268,9 +275,9 @@ const processChainWithHeuristic = async (
       );
       // Try adjacent blocks in case binary search is slightly off
       const adjacentEvents = await processBlockRange(
-        client,
         slashBlock - 2,
         slashBlock + 2,
+        rpcUrls,
       );
       if (Object.keys(adjacentEvents).length > 0) {
         const foundBlocks = Object.keys(adjacentEvents).join(", ");
@@ -290,7 +297,7 @@ const processChainWithHeuristic = async (
 
     // Store confirmed events immediately
     if (Object.keys(confirmedEvents).length > 0) {
-      await storeVerifiedEvents(client, chainId, confirmedEvents);
+      await storeVerifiedEvents(chainId, confirmedEvents, rpcUrls);
       storedCount += Object.keys(confirmedEvents).length;
       console.log(
         `[Verification]   📦 Stored to DB (total: ${storedCount} blocks with events)`,
@@ -328,13 +335,14 @@ const processChainWithHeuristic = async (
 
 const main = async () => {
   const chainName = CHAIN_NAME;
+  const rpcUrls = TENDERMINT_RPC_URLS;
+
   await upsertChains(supportedChains);
   const { id: chainId } = await selectChain(chainName);
   await syncAddressBook(chainId, chainName);
-  const client = await getTendermintClient(TENDERMINT_RPC_URL);
 
   const startHeight = await getStartHeight(chainId);
-  const endHeight = await getEndHeight(client);
+  const endHeight = await getEndHeight(rpcUrls);
   const processChainBatchSize = PROCESS_CHAIN_BATCH_SIZE;
   const fetchBatchSize = FETCH_BATCH_SIZE;
 
@@ -346,20 +354,18 @@ const main = async () => {
 
   if (useHeuristic) {
     // Use heuristic approach: O(log n) signing info-based detection
-    await processChainWithHeuristic(client, chainId, startHeight, endHeight);
+    await processChainWithHeuristic(chainId, startHeight, endHeight, rpcUrls);
   } else {
     // Use traditional sequential scan: O(n) block-by-block
     await processChain(
-      client,
       chainId,
       startHeight,
       endHeight,
       processChainBatchSize,
       fetchBatchSize,
+      rpcUrls,
     );
   }
-
-  client.disconnect();
 };
 
 if (require.main === module) {

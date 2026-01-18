@@ -20,7 +20,7 @@ import {
 } from "cosmjs-types/cosmos/slashing/v1beta1/query";
 import { ValidatorSigningInfo } from "cosmjs-types/cosmos/slashing/v1beta1/slashing";
 
-import { formatDuration, formatEta } from "./utils";
+import { formatDuration, formatEta, retryWithRotation } from "./utils";
 
 /**
  * Represents a detected jail event with its estimated block range.
@@ -38,7 +38,7 @@ export interface DetectedJailEvent {
  * Query signing infos at a specific height using ABCI query.
  */
 export const querySigningInfos = async (
-  client: CometClient,
+  rpcUrls: string[],
   height = 0,
   paginationOffset = 0,
 ): Promise<QuerySigningInfosResponse> => {
@@ -52,12 +52,16 @@ export const querySigningInfos = async (
   const requestData =
     QuerySigningInfosRequest.encode(signingInfoRequest).finish();
 
-  const response = await client.abciQuery({
-    path,
-    data: requestData,
-    prove: false,
-    height,
-  });
+  const response = await retryWithRotation(
+    (client: CometClient) =>
+      client.abciQuery({
+        path,
+        data: requestData,
+        prove: false,
+        height,
+      }),
+    rpcUrls,
+  );
 
   return QuerySigningInfosResponse.decode(response.value);
 };
@@ -66,7 +70,7 @@ export const querySigningInfos = async (
  * Query all signing infos by paginating through results.
  */
 export const queryAllSigningInfos = async (
-  client: CometClient,
+  rpcUrls: string[],
   height = 0,
 ): Promise<ValidatorSigningInfo[]> => {
   let allSigningInfos: ValidatorSigningInfo[] = [];
@@ -74,7 +78,7 @@ export const queryAllSigningInfos = async (
 
   do {
     const response = await querySigningInfos(
-      client,
+      rpcUrls,
       height,
       allSigningInfos.length,
     );
@@ -90,7 +94,7 @@ export const queryAllSigningInfos = async (
  * More efficient than querySigningInfos() when looking up a specific validator.
  */
 export const querySigningInfo = async (
-  client: CometClient,
+  rpcUrls: string[],
   consAddress: string,
   height = 0,
 ): Promise<ValidatorSigningInfo | null> => {
@@ -102,12 +106,16 @@ export const querySigningInfo = async (
     QuerySigningInfoRequest.encode(signingInfoRequest).finish();
 
   try {
-    const response = await client.abciQuery({
-      path,
-      data: requestData,
-      prove: false,
-      height,
-    });
+    const response = await retryWithRotation(
+      (client: CometClient) =>
+        client.abciQuery({
+          path,
+          data: requestData,
+          prove: false,
+          height,
+        }),
+      rpcUrls,
+    );
 
     const decoded = QuerySigningInfoResponse.decode(response.value);
     return decoded.valSigningInfo;
@@ -140,7 +148,7 @@ const findValidatorByAddress = (
  * @param onProgress Optional callback for progress updates (iteration, range remaining)
  */
 export const binarySearchJailBlock = async (
-  client: CometClient,
+  rpcUrls: string[],
   address: string,
   lowHeight: number,
   highHeight: number,
@@ -157,7 +165,7 @@ export const binarySearchJailBlock = async (
     }
 
     // Use single-validator query for efficiency
-    const validator = await querySigningInfo(client, address, midHeight);
+    const validator = await querySigningInfo(rpcUrls, address, midHeight);
 
     if (!validator) {
       return null;
@@ -181,7 +189,7 @@ export const binarySearchJailBlock = async (
  * Returns null if signing info is available from the earliest block.
  */
 export const findSigningInfoStartHeight = async (
-  client: CometClient,
+  rpcUrls: string[],
   earliestBlockHeight: number,
   latestBlockHeight: number,
 ): Promise<number> => {
@@ -212,7 +220,7 @@ export const findSigningInfoStartHeight = async (
     }
 
     try {
-      const infos = await querySigningInfos(client, midH);
+      const infos = await querySigningInfos(rpcUrls, midH);
       if (infos.info.length > 0) {
         highH = midH;
       } else {
@@ -238,7 +246,7 @@ export const findSigningInfoStartHeight = async (
  * Returns validators that were jailed (or re-jailed) between the two heights.
  */
 export const detectJailEvents = async (
-  client: CometClient,
+  rpcUrls: string[],
   startHeight: number,
   endHeight: number,
 ): Promise<DetectedJailEvent[]> => {
@@ -247,7 +255,7 @@ export const detectJailEvents = async (
   console.log(
     `[Heuristic] Querying signing info at start height ${startHeight.toLocaleString()}...`,
   );
-  const startInfos = await queryAllSigningInfos(client, startHeight);
+  const startInfos = await queryAllSigningInfos(rpcUrls, startHeight);
   console.log(
     `[Heuristic]   Found ${startInfos.length} validators at start height`,
   );
@@ -255,7 +263,7 @@ export const detectJailEvents = async (
   console.log(
     `[Heuristic] Querying signing info at end height ${endHeight.toLocaleString()}...`,
   );
-  const endInfos = await queryAllSigningInfos(client, endHeight);
+  const endInfos = await queryAllSigningInfos(rpcUrls, endHeight);
   console.log(
     `[Heuristic]   Found ${endInfos.length} validators at end height`,
   );
@@ -303,7 +311,7 @@ export const detectJailEvents = async (
  * Find exact jail blocks for detected jail events using binary search.
  */
 export const findExactJailBlocks = async (
-  client: CometClient,
+  rpcUrls: string[],
   events: DetectedJailEvent[],
   searchStartHeight: number,
   searchEndHeight: number,
@@ -336,7 +344,7 @@ export const findExactJailBlocks = async (
     );
 
     const foundBlock = await binarySearchJailBlock(
-      client,
+      rpcUrls,
       event.address,
       searchStartHeight,
       searchEndHeight,
@@ -384,7 +392,7 @@ export const findExactJailBlocks = async (
  * This is O(log n) per validator instead of O(n) for sequential block scanning.
  */
 export const findSlashEventsViaSigningInfo = async (
-  client: CometClient,
+  rpcUrls: string[],
   startHeight: number,
   endHeight: number,
 ): Promise<DetectedJailEvent[]> => {
@@ -401,7 +409,7 @@ export const findSlashEventsViaSigningInfo = async (
   // Step 1: Find signing info data availability boundary
   console.log(`[Heuristic] Step 1/3: Finding signing info availability...`);
   const signingInfoStartHeight = await findSigningInfoStartHeight(
-    client,
+    rpcUrls,
     startHeight,
     endHeight,
   );
@@ -409,7 +417,7 @@ export const findSlashEventsViaSigningInfo = async (
   // Step 2: Detect jail events by comparing start and end signing infos
   console.log(`\n[Heuristic] Step 2/3: Detecting jail events...`);
   const detectedEvents = await detectJailEvents(
-    client,
+    rpcUrls,
     signingInfoStartHeight,
     endHeight,
   );
@@ -426,7 +434,7 @@ export const findSlashEventsViaSigningInfo = async (
   // Step 3: Binary search for exact jail blocks
   console.log(`\n[Heuristic] Step 3/3: Binary searching for exact blocks...`);
   const eventsWithBlocks = await findExactJailBlocks(
-    client,
+    rpcUrls,
     detectedEvents,
     signingInfoStartHeight,
     endHeight,

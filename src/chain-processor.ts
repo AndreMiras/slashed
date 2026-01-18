@@ -1,4 +1,3 @@
-import { CometClient } from "@cosmjs/tendermint-rpc";
 import _ from "lodash";
 
 import {
@@ -21,6 +20,7 @@ import {
   BlockResultsResponse37,
   BlockResultsResponse38,
 } from "./types";
+import { retryWithRotation } from "./utils";
 
 /**
  * Filter for slashing events only.
@@ -46,48 +46,57 @@ const getSlashEventsForBlockResults = (
 };
 
 const getSlashEvents = async (
-  client: CometClient,
   heights: number[],
+  rpcUrls: string[],
 ): Promise<Record<number, BlockEvent[]>> => {
-  const promises = heights.map((height) => client.blockResults(height));
+  const promises = heights.map((height) =>
+    retryWithRotation(
+      async (client) =>
+        client.blockResults(height) as Promise<BlockResultsResponse>,
+      rpcUrls,
+    ),
+  );
   const blockResultsList = await Promise.all(promises);
-  const slashEvents = blockResultsList.reduce((slashEvents, blockResults) => {
-    const slashEventsForBlockResults =
-      getSlashEventsForBlockResults(blockResults);
-    const newSlashEvents =
-      slashEventsForBlockResults.length > 0
-        ? { [blockResults.height]: slashEventsForBlockResults }
-        : {};
-    return { ...slashEvents, ...newSlashEvents };
-  }, {});
+  const slashEvents = blockResultsList.reduce(
+    (slashEventsAcc: Record<number, BlockEvent[]>, blockResults) => {
+      const slashEventsForBlockResults =
+        getSlashEventsForBlockResults(blockResults);
+      const newSlashEvents =
+        slashEventsForBlockResults.length > 0
+          ? { [blockResults.height]: slashEventsForBlockResults }
+          : {};
+      return { ...slashEventsAcc, ...newSlashEvents };
+    },
+    {},
+  );
   return slashEvents;
 };
 
 const processBlocks = (
-  client: CometClient,
   heights: number[],
-): Promise<Record<number, BlockEvent[]>> => getSlashEvents(client, heights);
+  rpcUrls: string[],
+): Promise<Record<number, BlockEvent[]>> => getSlashEvents(heights, rpcUrls);
 
 /**
  * Processes blocks from startHeight to endHeight (inclusive).
  */
 export const processBlockRange = async (
-  client: CometClient,
   startHeight: number,
   endHeight: number,
+  rpcUrls: string[],
 ): Promise<Record<number, BlockEvent[]>> => {
   const heights = _.range(startHeight, endHeight + 1);
-  return processBlocks(client, heights);
+  return processBlocks(heights, rpcUrls);
 };
 
 /**
  * Processes blocks from startHeight to endHeight (inclusive) by batchSize chunks.
  */
 const processBlockRangeChunks = async (
-  client: CometClient,
   startHeight: number,
   endHeight: number,
   batchSize: number,
+  rpcUrls: string[],
 ): Promise<Record<number, BlockEvent[]>> => {
   const allHeights = _.range(startHeight, endHeight + 1);
   const heightsChunks = _.chunk(allHeights, batchSize);
@@ -99,7 +108,7 @@ const processBlockRangeChunks = async (
     console.log(
       `Processing block chunk ${i + 1}/${heightsChunks.length} (${progress}%)`,
     );
-    slashEventsWithEmpty.push(await processBlocks(client, heights));
+    slashEventsWithEmpty.push(await processBlocks(heights, rpcUrls));
   }
   const slashEvents = slashEventsWithEmpty.reduce(
     (acc, curr) => ({ ...acc, ...curr }),
@@ -130,24 +139,24 @@ const insertSlashEvents = (
 };
 
 const getBlockTimestamp = async (
-  client: CometClient,
   height: number,
+  rpcUrls: string[],
 ): Promise<Date> => {
-  const blockResponse = await client.block(height);
+  const blockResponse = await retryWithRotation(
+    (client) => client.block(height),
+    rpcUrls,
+  );
   return new Date(blockResponse.block.header.time.getTime());
 };
 
 /**
  * Add missing timestamps by fetching them using the RPC "block" call.
  */
-const processMissingTimestamps = async (
-  client: CometClient,
-  chainId: number,
-) => {
+const processMissingTimestamps = async (chainId: number, rpcUrls: string[]) => {
   const nullTimestampsRows = await selectNullTimestamps(chainId);
   const promises = nullTimestampsRows.map(async ({ height }) => ({
     chainId,
-    time: await getBlockTimestamp(client, height),
+    time: await getBlockTimestamp(height, rpcUrls),
     height,
   }));
   const upsertRows = await Promise.all(promises);
@@ -155,24 +164,24 @@ const processMissingTimestamps = async (
 };
 
 const processChainChunk = async (
-  client: CometClient,
   chainId: number,
   startHeight: number,
   endHeight: number,
   fetchBatchSize: number,
+  rpcUrls: string[],
 ) => {
   console.log("processChainChunk()");
   console.log({ startHeight, endHeight });
   const slashEvents = await processBlockRangeChunks(
-    client,
     startHeight,
     endHeight,
     fetchBatchSize,
+    rpcUrls,
   );
   logSlashEvents(slashEvents);
   logDecodeSlashEvents(slashEvents);
   await insertSlashEvents(chainId, slashEvents);
-  await processMissingTimestamps(client, chainId);
+  await processMissingTimestamps(chainId, rpcUrls);
   await updateLatestSynchronizedBlock(chainId, endHeight);
 };
 
@@ -183,22 +192,22 @@ const processChainChunk = async (
  * every processChainBatchSize blocks at most.
  */
 const processChain = async (
-  client: CometClient,
   chainId: number,
   startHeight: number,
   endHeight: number,
   processChainBatchSize: number,
   fetchBatchSize: number,
+  rpcUrls: string[],
 ) => {
   let currentStart = startHeight;
   let currentEnd = Math.min(startHeight + processChainBatchSize, endHeight);
   while (currentStart <= endHeight) {
     await processChainChunk(
-      client,
       chainId,
       currentStart,
       currentEnd,
       fetchBatchSize,
+      rpcUrls,
     );
     currentStart = currentEnd + 1;
     currentEnd = Math.min(currentStart + processChainBatchSize, endHeight);
